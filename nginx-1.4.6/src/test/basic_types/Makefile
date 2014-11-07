@@ -1077,5 +1077,7 @@ HTTP_INCS = -I ../../../src/http \
 test:	$(CORE_DEPS) $(HTTP_DEPS) \
 	basic_types_int.c
 	$(CC) $(CORE_INCS) $(HTTP_INCS) \
-		-o basic_types_int basic_types_int.c
+		-o basic_types_int.out basic_types_int.c
 
+clean: 
+	rm -rf *.out
