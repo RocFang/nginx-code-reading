@@ -1073,3 +1073,9 @@ HTTP_INCS = -I ../../../src/http \
 	$(CC) -c $(CFLAGS) $(CORE_INCS) $(HTTP_INCS) \
 		-o ../../../objs/src/http/modules/ngx_http_upstream_keepalive_module.o \
 		../../../src/http/modules/ngx_http_upstream_keepalive_module.c
+
+test:	$(CORE_DEPS) $(HTTP_DEPS) \
+	basic_types_int.c
+	$(CC) $(CORE_INCS) $(HTTP_INCS) \
+		-o basic_types_int basic_types_int.c
+
