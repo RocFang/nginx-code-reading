@@ -1075,9 +1075,12 @@ HTTP_INCS = -I ../../../src/http \
 		../../../src/http/modules/ngx_http_upstream_keepalive_module.c
 
 test:	$(CORE_DEPS) $(HTTP_DEPS) \
-	basic_types_int.c
+	basic_types_int.c \
+	basic_types_str.c
 	$(CC) $(CORE_INCS) $(HTTP_INCS) \
 		-o basic_types_int.out basic_types_int.c
+	$(CC) $(CORE_INCS) $(HTTP_INCS) \
+                -o basic_types_str.out basic_types_str.c
 
 clean: 
 	rm -rf *.out
