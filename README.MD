@@ -7,9 +7,8 @@ This project is about code learning of nginx, including some test codes and read
 ```
 cd nginx-1.4.6
 ./configure
-cd src/test/basic_types
 make
-./basic_types_int.out
+./objs/nginx
 ```
 
 # Thanks to
