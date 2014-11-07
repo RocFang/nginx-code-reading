@@ -6,7 +6,7 @@ This project is about code learning of nginx, including some test codes and read
 
 ```
 cd nginx-1.4.6
-./configure
+./configure --without-http
 make
 ./objs/nginx
 ```

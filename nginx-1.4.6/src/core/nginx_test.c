@@ -198,17 +198,55 @@ static char        *ngx_signal;
 static char **ngx_os_environ;
 
 
+#include "nginx_test.h"
 int ngx_cdecl
 main(int argc, char *const *argv)
 {
-    ngx_uint_t a;
-    ngx_int_t b;
-    a = 1000;
-    b = -1000;
-    printf ("%d + %d = %d\n", a, b, a+b);
+    /* test case for ngx_uint_t*/
+    printf("test case for ngx_uint_t:\n");
+    printf("=========================\n");
+    test_ngx_uint_t(3, 4);
+    printf("\n\n");
+
+    /* test case for ngx_str_t*/
+    printf("test case for ngx_str_t:\n");
+    printf("========================\n");
+    test_ngx_str_t();
+    printf("\n\n"); 
     return 0;
 }
 
+static ngx_int_t
+test_ngx_uint_t(ngx_uint_t a, ngx_uint_t b)
+{
+    printf("%d + %d = %d\n", a, b, a + b);
+    printf("%d - %d = %d\n", a, b, a - b);
+    printf("%d * %d = %d\n", a, b, a * b);
+    return 0; 
+}
+
+static ngx_int_t
+test_ngx_str_t()                                                            
+{   
+    u_char* p = NULL;
+    ngx_uint_t size;
+    ngx_str_t dst;
+    ngx_str_t mystr = ngx_string("hello, world !");
+    ngx_keyval_t pair = {ngx_string("url"), ngx_string("http://rainx.cn/index.php?test=1")};
+    int dst_len  =ngx_base64_encoded_length(mystr.len);
+    printf("source length is %d, destination length is %d\n", mystr.len, dst_len );
+    p = malloc( ngx_base64_encoded_length(mystr.len) + 1);
+    dst.data = p;
+    ngx_encode_base64(&dst, &mystr);
+    printf("source str is %s\ndestination str is %s\n", mystr.data, dst.data);
+    free(p);
+    size = pair.value.len + 2 * ngx_escape_uri(NULL, pair.value.data, pair.value.len, NGX_ESCAPE_URI);
+    p = malloc (size * sizeof(u_char));
+    ngx_escape_uri(p, pair.value.data, pair.value.len, NGX_ESCAPE_URI);
+    printf("escaped %s is : %s (%d)\noriginal url size is %d\n", pair.key.data, p, size, pair.value.len);
+    free(p);                                                                                                   
+    return 0;                                                                                          
+}     
 
 static ngx_int_t
 ngx_add_inherited_sockets(ngx_cycle_t *cycle)
