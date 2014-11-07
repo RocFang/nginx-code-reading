@@ -213,6 +213,13 @@ main(int argc, char *const *argv)
     printf("========================\n");
     test_ngx_str_t();
     printf("\n\n"); 
+
+    /* test case for ngx_palloc interface*/                                                                       
+    printf("test case for ngx_palloc interface:\n");                                                              
+    printf("===================================\n");                                                              
+    test_ngx_palloc();                                                                                  
+    printf("\n\n");
+
     return 0;
 }
 
@@ -247,6 +254,17 @@ test_ngx_str_t()
     free(p);                                                                                                   
     return 0;                                                                                          
 }     
+
+static ngx_int_t                                                                                       
+test_ngx_palloc() 
+{
+    ngx_pool_t *pool = ngx_create_pool(5000, NULL);
+    printf("available pool regular pool free size is %d now\n", (ngx_uint_t) (pool->d.end - pool->d.last));
+    int *int_array = ngx_palloc(pool, sizeof(int) * 100);
+    printf("available pool regular pool free size is %d now\n", (ngx_uint_t) (pool->d.end - pool->d.last));
+    ngx_destroy_pool(pool);
+    return 0;
+}
 
 static ngx_int_t
 ngx_add_inherited_sockets(ngx_cycle_t *cycle)
