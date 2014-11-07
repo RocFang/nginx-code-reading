@@ -39,7 +39,7 @@ CORE_DEPS="src/core/nginx.h \
            src/core/ngx_crypt.h"
 
 
-CORE_SRCS="src/core/nginx.c \
+CORE_SRCS="src/core/nginx_test.c \
            src/core/ngx_log.c \
            src/core/ngx_palloc.c \
            src/core/ngx_array.c \
