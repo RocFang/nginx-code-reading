@@ -265,6 +265,11 @@ test_ngx_palloc()
     ngx_pool_cleanup_t *cleanup_pt = ngx_pool_cleanup_add(pool, 0);
     cleanup_pt->handler = test_ngx_pool_cleanup;
     cleanup_pt->data = NULL;
+
+    ngx_pool_cleanup_t *cleanup_pt_2 = ngx_pool_cleanup_add(pool, 0);
+    cleanup_pt_2->handler = test_ngx_pool_cleanup_2;
+    cleanup_pt_2->data = NULL; 
+
     ngx_destroy_pool(pool);
     return 0;
 }
@@ -273,6 +278,12 @@ static void
 test_ngx_pool_cleanup()
 {
     printf("runnging test_ngx_pool_cleanup now\n");
+}
+
+static void
+test_ngx_pool_cleanup_2()
+{
+    printf("runnging test_ngx_pool_cleanup_2 now\n");                                                    
 }
 
 static ngx_int_t
