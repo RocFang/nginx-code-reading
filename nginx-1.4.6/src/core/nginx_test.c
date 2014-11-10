@@ -262,8 +262,17 @@ test_ngx_palloc()
     printf("available pool regular pool free size is %d now\n", (ngx_uint_t) (pool->d.end - pool->d.last));
     int *int_array = ngx_palloc(pool, sizeof(int) * 100);
     printf("available pool regular pool free size is %d now\n", (ngx_uint_t) (pool->d.end - pool->d.last));
+    ngx_pool_cleanup_t *cleanup_pt = ngx_pool_cleanup_add(pool, 0);
+    cleanup_pt->handler = test_ngx_pool_cleanup;
+    cleanup_pt->data = NULL;
     ngx_destroy_pool(pool);
     return 0;
+}
+
+static void 
+test_ngx_pool_cleanup()
+{
+    printf("runnging test_ngx_pool_cleanup now\n");
 }
 
 static ngx_int_t
