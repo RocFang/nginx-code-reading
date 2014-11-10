@@ -220,6 +220,13 @@ main(int argc, char *const *argv)
     test_ngx_palloc();                                                                                  
     printf("\n\n");
 
+
+    /* test case for ngx_palloc interface*/
+    printf("test case for ngx_array interface:\n");
+    printf("==================================\n");
+    test_ngx_array();
+    printf("\n\n");
+
     return 0;
 }
 
@@ -285,6 +292,35 @@ test_ngx_pool_cleanup_2()
 {
     printf("runnging test_ngx_pool_cleanup_2 now\n");                                                    
 }
+
+static ngx_int_t                                                                                       
+test_ngx_array()                                                                              
+{                                                                                                      
+    ngx_pool_t* pool;
+    ngx_array_t* arr;
+    int n;
+    int* ele;
+    pool = ngx_create_pool(4000, NULL);
+    arr = ngx_array_create(pool, 10, sizeof(ngx_uint_t));
+    for (n=0; n < 5; n++) {
+        ele = (int*) ngx_array_push(arr);
+        *ele = n;
+        printf("new element %d added\n", n);
+    }
+
+    printf("arr->nelts is %d, arr->nalloc = %d\n", arr->nelts, arr->nalloc);
+
+    for (n=5; n < 15; n++) {
+        ele = (int*) ngx_array_push(arr);
+        *ele = n;
+        printf("new element %d added\n", n);
+    }
+    printf("arr->nelts is %d, arr->nalloc = %d\n", arr->nelts, arr->nalloc);
+
+    ngx_array_destroy(arr);
+    ngx_destroy_pool(pool);
+   
+}  
 
 static ngx_int_t
 ngx_add_inherited_sockets(ngx_cycle_t *cycle)
