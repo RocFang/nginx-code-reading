@@ -360,8 +360,8 @@ test_ngx_queue()
         guy = (yahoo_guy_t*) ngx_palloc(pool, sizeof(yahoo_guy_t));
         guy->id = ids[i];
         guy->name = (char*) ngx_palloc(pool, strlen(names[i]) + 1 );
-        //ngx_snprintf(guy->name, strlen(names[i]) + 1, "%s", names[i]);
-        snprintf(guy->name, strlen(names[i]) + 1, "%s", names[i]);
+        ngx_snprintf(guy->name, strlen(names[i]) + 1, "%s%Z", names[i]);
+        //snprintf(guy->name, strlen(names[i]) + 1, "%s", names[i]);
         ngx_queue_init(&guy->queue);
         // 从头部进入队列
         ngx_queue_insert_head(&yahoo->queue, &guy->queue);
