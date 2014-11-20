@@ -427,10 +427,11 @@ test_ngx_queue()
 static ngx_int_t
 test_ngx_hash()
 {
-    static ngx_str_t names[] = {ngx_string("rainx"),
+    static              ngx_str_t names[] = {ngx_string("rainx"),
                             ngx_string("xiaozhe"),
+                            ngx_string("fangpeng"),
                             ngx_string("zhoujian")};
-    static char* descs[] = {"rainx's id is 1","xiaozhe's id is 2","zhoujian's id is 3"}; 
+    static char        *descs[] = {"rainx's id is 1","xiaozhe's id is 2","fangpeng's id is 3","zhoujian's id is 4"}; 
     ngx_uint_t          k; //, p, h;
     ngx_pool_t*         pool;
     ngx_hash_init_t     hash_init;
@@ -458,9 +459,8 @@ test_ngx_hash()
     hash_init.temp_pool      = NULL;
 
     // 创建数组
-
     elements = ngx_array_create(pool, 32, sizeof(ngx_hash_key_t));
-    for(i = 0; i < 3; i++) {
+    for(i = 0; i < 4; i++) {
         arr_node            = (ngx_hash_key_t*) ngx_array_push(elements);
         arr_node->key       = (names[i]);
         arr_node->key_hash  = ngx_hash_key_lc(arr_node->key.data, arr_node->key.len);
@@ -476,9 +476,14 @@ test_ngx_hash()
     // 查找
     k    = ngx_hash_key_lc(names[0].data, names[0].len);
     printf("%s key is %d\n", names[0].data, k);
-    find = (char*)
-        ngx_hash_find(hash, k, (u_char*) names[0].data, names[0].len);
+    find = (char*)ngx_hash_find(hash, k, (u_char*) names[0].data, names[0].len);
+    if (find) {
+        printf("get desc of rainx: %s\n", (char*) find);
+    }
 
+    k    = ngx_hash_key_lc(names[2].data, names[2].len);
+    printf("%s key is %d\n", names[2].data, k);
+    find = (char*)ngx_hash_find(hash, k, (u_char*) names[2].data, names[2].len);
     if (find) {
         printf("get desc of rainx: %s\n", (char*) find);
     }
