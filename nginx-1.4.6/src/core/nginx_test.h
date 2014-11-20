@@ -5,6 +5,7 @@ static void test_ngx_pool_cleanup();
 static void test_ngx_pool_cleanup_2();
 static ngx_int_t test_ngx_array();  
 static ngx_int_t test_ngx_queue();  
+static ngx_int_t test_ngx_hash();  
 static ngx_int_t yahoo_no_cmp(const ngx_queue_t* p, const ngx_queue_t* n);
 static ngx_int_t test_ngx_snprintf();
 
