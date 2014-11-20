@@ -214,6 +214,12 @@ main(int argc, char *const *argv)
     test_ngx_str_t();
     printf("\n\n"); 
 
+    /* test case for ngx_snprintf*/
+    printf("test case for ngx_snprintf:\n");
+    printf("===========================\n");
+    test_ngx_snprintf();
+    printf("\n\n");
+
     /* test case for ngx_palloc interface*/                                                                       
     printf("test case for ngx_palloc interface:\n");                                                              
     printf("===================================\n");                                                              
@@ -268,6 +274,29 @@ test_ngx_str_t()
     free(p);                                                                                                   
     return 0;                                                                                          
 }     
+
+static ngx_int_t                                                                                       
+test_ngx_snprintf()                                                            
+{                                                                                                      
+    char *hello = "hello, world!";
+    char testbuffer[20]; 
+    printf("snprintf:\n");
+    memset(testbuffer, '1', sizeof(testbuffer));
+    snprintf(testbuffer, sizeof(testbuffer), "%s", hello);
+    printf("%s\n", testbuffer);
+    
+    printf("ngx_snprintf without option Z:\n");
+    memset(testbuffer, '1', sizeof(testbuffer));
+    ngx_snprintf(testbuffer, sizeof(testbuffer), "%s", hello);
+    printf("%s\n", testbuffer);
+
+    printf("ngx_snprintf with option Z:\n");
+    memset(testbuffer, '1', sizeof(testbuffer));
+    ngx_snprintf(testbuffer, sizeof(testbuffer), "%s%Z", hello);
+    printf("%s\n", testbuffer);
+
+    return 0;
+}
 
 static ngx_int_t                                                                                       
 test_ngx_palloc() 
