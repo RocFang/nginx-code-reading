@@ -38,6 +38,7 @@ ngx_module_t *ngx_modules[] = {
 };
 ```
 其中，ngx_modules数组中包含的几个模块即为Nginx中的几个核心模块。
+
 1. ngx_core_module
 2. ngx_errlog_module
 3. ngx_conf_module
