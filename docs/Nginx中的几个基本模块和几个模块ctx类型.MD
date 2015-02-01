@@ -46,4 +46,88 @@ ngx_module_t *ngx_modules[] = {
 5. ngx_event_core_module
 6. ngx_epoll_module
 
+# 3.Nginx模块的基本数据结构
+每一个Nginx模块，都是一个ngx_module_t类型的变量，ngx_module_t类型定义如下:
+```
+struct ngx_module_s {
+    ngx_uint_t            ctx_index;
+    ngx_uint_t            index;
 
+    ngx_uint_t            spare0;
+    ngx_uint_t            spare1;
+    ngx_uint_t            spare2;
+    ngx_uint_t            spare3;
+
+    ngx_uint_t            version;
+
+    void                 *ctx;
+    ngx_command_t        *commands;
+    ngx_uint_t            type;
+
+    ngx_int_t           (*init_master)(ngx_log_t *log);
+
+    ngx_int_t           (*init_module)(ngx_cycle_t *cycle);
+
+    ngx_int_t           (*init_process)(ngx_cycle_t *cycle);
+    ngx_int_t           (*init_thread)(ngx_cycle_t *cycle);
+    void                (*exit_thread)(ngx_cycle_t *cycle);
+    void                (*exit_process)(ngx_cycle_t *cycle);
+
+    void                (*exit_master)(ngx_cycle_t *cycle);
+
+    uintptr_t             spare_hook0;
+    uintptr_t             spare_hook1;
+    uintptr_t             spare_hook2;
+    uintptr_t             spare_hook3;
+    uintptr_t             spare_hook4;
+    uintptr_t             spare_hook5;
+    uintptr_t             spare_hook6;
+    uintptr_t             spare_hook7;
+};
+```
+例如，http模块的定义为:
+```
+ngx_module_t  ngx_http_module = {
+    NGX_MODULE_V1,
+    &ngx_http_module_ctx,                  /* module context */
+    ngx_http_commands,                     /* module directives */
+    NGX_CORE_MODULE,                       /* module type */
+    NULL,                                  /* init master */
+    NULL,                                  /* init module */
+    NULL,                                  /* init process */
+    NULL,                                  /* init thread */
+    NULL,                                  /* exit thread */
+    NULL,                                  /* exit process */
+    NULL,                                  /* exit master */
+    NGX_MODULE_V1_PADDING
+};
+```
+
+从上述结构体中，我们可以看到一个ctx成员。ctx成员是Nginx模块的重要组成部分。基本上，每一个Nginx模块（我们一般说一个Nginx模块，指的就是一个ngx_module_t类型的变量）都会定义一个ctx变量，之所以说基本上，是因为也有例外。例如ngx_conf_module的定义为:
+```
+ngx_module_t  ngx_conf_module = {
+    NGX_MODULE_V1,
+    NULL,                                  /* module context */
+    ngx_conf_commands,                     /* module directives */
+    NGX_CONF_MODULE,                       /* module type */
+    NULL,                                  /* init master */
+    NULL,                                  /* init module */
+    NULL,                                  /* init process */
+    NULL,                                  /* init thread */
+    NULL,                                  /* exit thread */
+    ngx_conf_flush_files,                  /* exit process */
+    NULL,                                  /* exit master */
+    NGX_MODULE_V1_PADDING
+};
+```
+可以看到，其ctx成员为NULL。
+在ngx_module_t的类型定义中，我们看到ctx是一个void*类型的指针，意味着其类型可能不是唯一的。
+那么Nginx中有几种类型的ctx呢？
+
+# 4.Nginx中的几个基本的ctx类型
+Nginx中目前主要包含如下几个ctx类型：
+
+1. ngx_core_module_t
+2. ngx_event_module_t
+3. ngx_http_module_t
+4. ngx_mail_module_t
