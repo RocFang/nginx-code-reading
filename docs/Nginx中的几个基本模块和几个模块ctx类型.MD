@@ -152,6 +152,8 @@ Nginx-1.6.2中，ngx_core_module_t类型的模块（即ctx成员为ngx_core_modu
 7. ngx_mail_module
 8. ngx_regex_module
 
+这些模块的type成员均为常量NGX_CORE_MODULE，在遍历ngx_modules数组时，经常用该变量作为ngx_core_module_t类型模块的标记。
+
 ## 4.2 ngx_event_module_t
 ngx_event_module_t的定义为:
 ```
@@ -195,6 +197,8 @@ Nginx-1.6.2中，ngx_event_module_t类型的模块（即ctx成员为ngx_event_mo
 9. ngx_select_module
 
 一般来说，在Linux上，需要关注的是ngx_epoll_module和ngx_event_core_module.
+
+这些模块的type成员均为常量NGX_EVENT_MODULE，在遍历ngx_modules数组时，经常用该变量作为ngx_event_module_t类型模块的标记。
 
 ## 4.3 ngx_http_module_t
 ngx_http_module_t的定义为：
@@ -276,6 +280,8 @@ Nginx-1.6.2中，原生的ngx_http_module_t类型的模块（即ctx为ngx_http_m
 57. ngx_http_write_filter_module
 58. ngx_http_xslt_filter_module
 
+这些模块的type成员均为常量NGX_HTTP_MODULE，在遍历ngx_modules数组时，经常用该变量作为ngx_http_module_t类型模块的标记。
+
 ## 4.4 ngx_mail_module_t
 ngx_mail_module_t的定义为:
 ```
@@ -299,3 +305,5 @@ Nginx-1.6.2中，ngx_mail_module_t类型的模块（即ctx成员为ngx_mail_modu
 5. ngx_mail_proxy_module
 6. ngx_mail_smtp_module
 7. ngx_mail_ssl_module
+
+这些模块的type成员均为常量NGX_MAIL_MODULE，在遍历ngx_modules数组时，经常用该变量作为ngx_mail_module_t类型模块的标记。
