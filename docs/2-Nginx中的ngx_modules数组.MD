@@ -274,5 +274,6 @@ for (i = 0; ngx_modules[i]; i++) {
     }
 ```
 上面的代码，对于所有的EGX_EVENT_MODULE类型的模块，初始化其ctx_index变量。主要有两点:
+
 1. ngx_event_max_module代表了ngx_event_module_t类型模块的个数。而ngx_max_module则代表了所有模块的个数。
 2. ctx_index成员表示该模块在该类模块（本例中为ngx_event_module_t类型的模块)中的序号。
