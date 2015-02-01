@@ -174,5 +174,6 @@ ngx_module_t *ngx_modules[] = {
     }
 ```
 上述代码在nginx.c的main函数中，可以看到，其作用为:
+
 1. 统计系统中到底有多少个模块，记录在全局变量ngx_max_module中。
 2. 将每个模块在ngx_modules数组中的序号，记录在模块的index变量中。
