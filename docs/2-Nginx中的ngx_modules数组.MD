@@ -177,3 +177,28 @@ ngx_module_t *ngx_modules[] = {
 
 1. 统计系统中到底有多少个模块，记录在全局变量ngx_max_module中。
 2. 将每个模块在ngx_modules数组中的序号，记录在模块的index变量中。
+
+## 2.2 用来解析每个模块的配置
+具体见函数ngx_conf_handler。
+
+## 2.3 执行每个模块的ctx中的钩子函数
+例如:
+```
+for (i = 0; ngx_modules[i]; i++) {
+        if (ngx_modules[i]->type != NGX_CORE_MODULE) {
+            continue;
+        }
+
+        module = ngx_modules[i]->ctx;
+
+        if (module->create_conf) {
+            rv = module->create_conf(cycle);
+            if (rv == NULL) {
+                ngx_destroy_pool(pool);
+                return NULL;
+            }
+            cycle->conf_ctx[ngx_modules[i]->index] = rv;
+        }
+    }
+```
+以上代码对所有的ngx_core_module_t类型的模块，调用其ctx成员中的create_conf钩子函数。
