@@ -275,3 +275,27 @@ Nginx-1.6.2中，原生的ngx_http_module_t类型的模块（即ctx为ngx_http_m
 56. ngx_http_uwsgi_module
 57. ngx_http_write_filter_module
 58. ngx_http_xslt_filter_module
+
+## 4.4 ngx_mail_module_t
+ngx_mail_module_t的定义为:
+```
+typedef struct {
+    ngx_mail_protocol_t        *protocol;
+
+    void                       *(*create_main_conf)(ngx_conf_t *cf);
+    char                       *(*init_main_conf)(ngx_conf_t *cf, void *conf);
+
+    void                       *(*create_srv_conf)(ngx_conf_t *cf);
+    char                       *(*merge_srv_conf)(ngx_conf_t *cf, void *prev,
+                                      void *conf);
+} ngx_mail_module_t;
+```
+Nginx-1.6.2中，ngx_mail_module_t类型的模块（即ctx成员为ngx_mail_module_t类型的ngx_module_t变量)包括：
+
+1. ngx_mail_auth_http_module
+2. ngx_mail_core_module
+3. ngx_mail_imap_module
+4. ngx_mail_pop3_module
+5. ngx_mail_proxy_module
+6. ngx_mail_smtp_module
+7. ngx_mail_ssl_module
