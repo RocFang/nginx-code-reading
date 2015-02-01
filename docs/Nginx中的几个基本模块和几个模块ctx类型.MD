@@ -151,3 +151,47 @@ Nginx-1.6.2中，ngx_core_module_t类型的模块（即ctx成员为ngx_core_modu
 6. ngx_errlog_module
 7. ngx_mail_module
 8. ngx_regex_module
+
+## 4.2 ngx_event_module_t
+ngx_event_module_t的定义为:
+```
+typedef struct {
+    ngx_str_t              *name;
+
+    void                 *(*create_conf)(ngx_cycle_t *cycle);
+    char                 *(*init_conf)(ngx_cycle_t *cycle, void *conf);
+
+    ngx_event_actions_t     actions;
+} ngx_event_module_t;
+
+typedef struct {
+    ngx_int_t  (*add)(ngx_event_t *ev, ngx_int_t event, ngx_uint_t flags);
+    ngx_int_t  (*del)(ngx_event_t *ev, ngx_int_t event, ngx_uint_t flags);
+
+    ngx_int_t  (*enable)(ngx_event_t *ev, ngx_int_t event, ngx_uint_t flags);
+    ngx_int_t  (*disable)(ngx_event_t *ev, ngx_int_t event, ngx_uint_t flags);
+
+    ngx_int_t  (*add_conn)(ngx_connection_t *c);
+    ngx_int_t  (*del_conn)(ngx_connection_t *c, ngx_uint_t flags);
+
+    ngx_int_t  (*process_changes)(ngx_cycle_t *cycle, ngx_uint_t nowait);
+    ngx_int_t  (*process_events)(ngx_cycle_t *cycle, ngx_msec_t timer,
+                   ngx_uint_t flags);
+
+    ngx_int_t  (*init)(ngx_cycle_t *cycle, ngx_msec_t timer);
+    void       (*done)(ngx_cycle_t *cycle);
+} ngx_event_actions_t;
+```
+Nginx-1.6.2中，ngx_event_module_t类型的模块（即ctx成员为ngx_event_module_t类型的ngx_module_t变量)包括：
+
+1. ngx_aio_module
+2. ngx_devpoll_module
+3. ngx_epoll_module
+4. ngx_event_core_module
+5. ngx_eventport_module
+6. ngx_kqueue_module
+7. ngx_poll_module
+8. ngx_rtsig_module
+9. ngx_select_module
+
+一般来说，在Linux上，需要关注的是ngx_epoll_module和ngx_event_core_module.
