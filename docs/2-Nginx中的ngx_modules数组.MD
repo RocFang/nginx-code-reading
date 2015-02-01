@@ -163,3 +163,16 @@ ngx_module_t *ngx_modules[] = {
 4. 所有的ngx_mail_module_t类型的模块，其type成员为NGX_MAIL_MODULE
 
 所以,在遍历ngx_modules数组时，即可根据每一个数组成员的type成员，来判断该模块属于哪种类型的模块，进而执行该模块对应的钩子函数。
+
+下面，我们以nginx-1.6.2为例，看看程序在哪些地方对nginx_modules数组进行了遍历。
+
+## 2.1
+```
+ ngx_max_module = 0;
+    for (i = 0; ngx_modules[i]; i++) {
+        ngx_modules[i]->index = ngx_max_module++;
+    }
+```
+上述代码在nginx.c的main函数中，可以看到，其作用为:
+1. 统计系统中到底有多少个模块，记录在全局变量ngx_max_module中。
+2. 将每个模块在ngx_modules数组中的序号，记录在模块的index变量中。
