@@ -3,7 +3,7 @@ ngx_modules数组是在执行configure脚本后自动生成的，在objs/ngx_mod
 
 做如下操作，可以看到ngx_moduels数组的一般形式：
 
-1. 最简单的Nginx框架，不包含任何HTTP模块
+## 1.1 最简单的Nginx框架，不包含任何HTTP模块
 ```
 cd nginx-1.6.2
 ./configure --without-http
@@ -32,7 +32,7 @@ ngx_module_t *ngx_modules[] = {
     NULL
 };
 ```
-2. 默认的ngx_modules数组:
+## 1.2 默认的ngx_modules数组:
 ```
 make clean
 cd nginx-1.6.2
