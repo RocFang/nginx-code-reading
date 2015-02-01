@@ -182,7 +182,7 @@ ngx_module_t *ngx_modules[] = {
 具体见函数ngx_conf_handler。
 
 ## 2.3 执行每个模块的ctx中的钩子函数
-例如:
+例如,ngx_init_cycle函数中:
 ```
 for (i = 0; ngx_modules[i]; i++) {
         if (ngx_modules[i]->type != NGX_CORE_MODULE) {
@@ -202,3 +202,77 @@ for (i = 0; ngx_modules[i]; i++) {
     }
 ```
 以上代码对所有的ngx_core_module_t类型的模块，调用其ctx成员中的create_conf钩子函数。
+
+同样在在ngx_init_cycle函数：
+```
+  for (i = 0; ngx_modules[i]; i++) {
+        if (ngx_modules[i]->type != NGX_CORE_MODULE) {
+            continue;
+        }
+
+        module = ngx_modules[i]->ctx;
+
+        if (module->init_conf) {
+            if (module->init_conf(cycle, cycle->conf_ctx[ngx_modules[i]->index])
+                == NGX_CONF_ERROR)
+            {
+                environ = senv;
+                ngx_destroy_cycle_pools(&conf);
+                return NULL;
+            }
+        }
+    }
+
+```
+以上代码对所有的ngx_core_module_t类型的模块，调用其ctx成员的init_conf钩子函数。
+
+继续看ngx_init_cycle函数:
+```
+   for (i = 0; ngx_modules[i]; i++) {
+        if (ngx_modules[i]->init_module) {
+            if (ngx_modules[i]->init_module(cycle) != NGX_OK) {
+                /* fatal */
+                exit(1);
+            }
+        }
+    }
+```
+以上代码调用所有的nginx模块（ngx_module_t变量）的init_module钩子函数（如果不为空的话）。
+
+在ngx_event_process_init函数中:
+```
+    for (m = 0; ngx_modules[m]; m++) {
+        if (ngx_modules[m]->type != NGX_EVENT_MODULE) {
+            continue;
+        }
+
+        if (ngx_modules[m]->ctx_index != ecf->use) {
+            continue;
+        }
+
+        module = ngx_modules[m]->ctx;
+
+        if (module->actions.init(cycle, ngx_timer_resolution) != NGX_OK) {
+            /* fatal */
+            exit(2);
+        }
+
+        break;
+    }
+```
+调用event模块的ctx成员中的actions.init钩子函数，对于epoll,则是ngx_epoll_init函数。
+
+在ngx_events_block函数中:
+```
+  ngx_event_max_module = 0;
+  for (i = 0; ngx_modules[i]; i++) {
+        if (ngx_modules[i]->type != NGX_EVENT_MODULE) {
+            continue;
+        }
+
+        ngx_modules[i]->ctx_index = ngx_event_max_module++;
+    }
+```
+上面的代码，对于所有的EGX_EVENT_MODULE类型的模块，初始化其ctx_index变量。主要有两点:
+1. ngx_event_max_module代表了ngx_event_module_t类型模块的个数。而ngx_max_module则代表了所有模块的个数。
+2. ctx_index成员表示该模块在该类模块（本例中为ngx_event_module_t类型的模块)中的序号。
