@@ -166,7 +166,7 @@ ngx_module_t *ngx_modules[] = {
 
 下面，我们以nginx-1.6.2为例，看看程序在哪些地方对nginx_modules数组进行了遍历。
 
-## 2.1
+## 2.1 统计模块数量
 ```
  ngx_max_module = 0;
     for (i = 0; ngx_modules[i]; i++) {
@@ -203,7 +203,7 @@ for (i = 0; ngx_modules[i]; i++) {
 ```
 以上代码对所有的ngx_core_module_t类型的模块，调用其ctx成员中的create_conf钩子函数。
 
-同样在在ngx_init_cycle函数：
+## 2.4 同样在在ngx_init_cycle函数：
 ```
   for (i = 0; ngx_modules[i]; i++) {
         if (ngx_modules[i]->type != NGX_CORE_MODULE) {
@@ -226,7 +226,7 @@ for (i = 0; ngx_modules[i]; i++) {
 ```
 以上代码对所有的ngx_core_module_t类型的模块，调用其ctx成员的init_conf钩子函数。
 
-继续看ngx_init_cycle函数:
+## 2.5 继续看ngx_init_cycle函数:
 ```
    for (i = 0; ngx_modules[i]; i++) {
         if (ngx_modules[i]->init_module) {
@@ -239,7 +239,7 @@ for (i = 0; ngx_modules[i]; i++) {
 ```
 以上代码调用所有的nginx模块（ngx_module_t变量）的init_module钩子函数（如果不为空的话）。
 
-在ngx_event_process_init函数中:
+## 2.6 在ngx_event_process_init函数中:
 ```
     for (m = 0; ngx_modules[m]; m++) {
         if (ngx_modules[m]->type != NGX_EVENT_MODULE) {
@@ -262,7 +262,7 @@ for (i = 0; ngx_modules[i]; i++) {
 ```
 调用event模块的ctx成员中的actions.init钩子函数，对于epoll,则是ngx_epoll_init函数。
 
-在ngx_events_block函数中:
+## 2.7 在ngx_events_block函数中:
 ```
   ngx_event_max_module = 0;
   for (i = 0; ngx_modules[i]; i++) {
@@ -273,7 +273,258 @@ for (i = 0; ngx_modules[i]; i++) {
         ngx_modules[i]->ctx_index = ngx_event_max_module++;
     }
 ```
-上面的代码，对于所有的EGX_EVENT_MODULE类型的模块，初始化其ctx_index变量。主要有两点:
+上面的代码，对于所有的NGX_EVENT_MODULE类型的模块，初始化其ctx_index变量。主要有两点:
 
 1. ngx_event_max_module代表了ngx_event_module_t类型模块的个数。而ngx_max_module则代表了所有模块的个数。
 2. ctx_index成员表示该模块在该类模块（本例中为ngx_event_module_t类型的模块)中的序号。
+
+## 2.8 在ngx_events_block函数中:
+```
+ for (i = 0; ngx_modules[i]; i++) {
+        if (ngx_modules[i]->type != NGX_EVENT_MODULE) {
+            continue;
+        }
+
+        m = ngx_modules[i]->ctx;
+
+        if (m->create_conf) {
+            (*ctx)[ngx_modules[i]->ctx_index] = m->create_conf(cf->cycle);
+            if ((*ctx)[ngx_modules[i]->ctx_index] == NULL) {
+                return NGX_CONF_ERROR;
+            }
+        }
+    }
+```
+上面的代码，对于所有的NGX_EVENT_MODULE类型的模块,调用其ctx成员中的create_conf钩子函数。
+
+## 2.9 在ngx_events_block函数中:
+```
+    for (i = 0; ngx_modules[i]; i++) {
+        if (ngx_modules[i]->type != NGX_EVENT_MODULE) {
+            continue;
+        }
+
+        m = ngx_modules[i]->ctx;
+
+        if (m->init_conf) {
+            rv = m->init_conf(cf->cycle, (*ctx)[ngx_modules[i]->ctx_index]);
+            if (rv != NGX_CONF_OK) {
+                return rv;
+            }
+        }
+    }
+```
+上面的代码，对于所有的NGX_EVENT_MODULE类型的模块,调用其ctx成员中的init_conf钩子函数。
+
+## 2.10 在ngx_event_use函数中:
+```
+    for (m = 0; ngx_modules[m]; m++) {
+        if (ngx_modules[m]->type != NGX_EVENT_MODULE) {
+            continue;
+        }
+
+        module = ngx_modules[m]->ctx;
+        if (module->name->len == value[1].len) {
+            if (ngx_strcmp(module->name->data, value[1].data) == 0) {
+                ecf->use = ngx_modules[m]->ctx_index;
+                ecf->name = module->name->data;
+
+                if (ngx_process == NGX_PROCESS_SINGLE
+                    && old_ecf
+                    && old_ecf->use != ecf->use)
+                {
+                    ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                               "when the server runs without a master process "
+                               "the \"%V\" event type must be the same as "
+                               "in previous configuration - \"%s\" "
+                               "and it cannot be changed on the fly, "
+                               "to change it you need to stop server "
+                               "and start it again",
+                               &value[1], old_ecf->name);
+
+                    return NGX_CONF_ERROR;
+                }
+
+                return NGX_CONF_OK;
+            }
+        }
+    }
+```
+ngx_event_use是ngx_event_core_module模块的指令"use"的解析函数。
+
+## 2.11 在函数ngx_http_block中:
+```
+    ngx_http_max_module = 0;
+    for (m = 0; ngx_modules[m]; m++) {
+        if (ngx_modules[m]->type != NGX_HTTP_MODULE) {
+            continue;
+        }
+
+        ngx_modules[m]->ctx_index = ngx_http_max_module++;
+    }
+```
+上面的代码主要做了两件事情:
+1. 遍历所有的ngx_http_module_t类型的模块，统计这种模块的个数，存在变量ngx_http_max_module中。
+2. 初始化每个ngx_http_module_t类型的模块的ctx_index变量，该值的涵义是每个ngx_http_module_t模块在所有该类模块中的序号。
+
+## 2.12 在函数ngx_http_block中:
+```
+    for (m = 0; ngx_modules[m]; m++) {
+        if (ngx_modules[m]->type != NGX_HTTP_MODULE) {
+            continue;
+        }
+
+        module = ngx_modules[m]->ctx;
+        mi = ngx_modules[m]->ctx_index;
+
+        if (module->create_main_conf) {
+            ctx->main_conf[mi] = module->create_main_conf(cf);
+            if (ctx->main_conf[mi] == NULL) {
+                return NGX_CONF_ERROR;
+            }
+        }
+
+        if (module->create_srv_conf) {
+            ctx->srv_conf[mi] = module->create_srv_conf(cf);
+            if (ctx->srv_conf[mi] == NULL) {
+                return NGX_CONF_ERROR;
+            }
+        }
+
+        if (module->create_loc_conf) {
+            ctx->loc_conf[mi] = module->create_loc_conf(cf);
+            if (ctx->loc_conf[mi] == NULL) {
+                return NGX_CONF_ERROR;
+            }
+        }
+    }
+```
+上面的代码分别调用所有ngx_http_module_t类型模块的create_main_conf、create_srv_conf和create_loc_conf钩子函数。
+
+## 2.13 同样在ngx_http_block函数中:
+```
+for (m = 0; ngx_modules[m]; m++) {
+        if (ngx_modules[m]->type != NGX_HTTP_MODULE) {
+            continue;
+        }
+
+        module = ngx_modules[m]->ctx;
+
+        if (module->preconfiguration) {
+            if (module->preconfiguration(cf) != NGX_OK) {
+                return NGX_CONF_ERROR;
+            }
+        }
+    }
+```
+调用所有ngx_http_module_t类型模块的preconfiguration钩子函数。
+
+## 2.14 同样在ngx_http_block函数中:
+```
+    for (m = 0; ngx_modules[m]; m++) {
+        if (ngx_modules[m]->type != NGX_HTTP_MODULE) {
+            continue;
+        }
+
+        module = ngx_modules[m]->ctx;
+        mi = ngx_modules[m]->ctx_index;
+
+        /* init http{} main_conf's */
+
+        if (module->init_main_conf) {
+            rv = module->init_main_conf(cf, ctx->main_conf[mi]);
+            if (rv != NGX_CONF_OK) {
+                goto failed;
+            }
+        }
+
+        rv = ngx_http_merge_servers(cf, cmcf, module, mi);
+        if (rv != NGX_CONF_OK) {
+            goto failed;
+        }
+    }
+```
+上面的代码首先调用所有ngx_http_module_t类型模块的init_main_conf钩子函数，然后对main, server, location等配置进行了合并。
+
+## 2.15 仍然看ngx_http_block函数:
+```
+    for (m = 0; ngx_modules[m]; m++) {
+        if (ngx_modules[m]->type != NGX_HTTP_MODULE) {
+            continue;
+        }
+
+        module = ngx_modules[m]->ctx;
+
+        if (module->postconfiguration) {
+            if (module->postconfiguration(cf) != NGX_OK) {
+                return NGX_CONF_ERROR;
+            }
+        }
+    }
+```
+很明显，上面的代码调用了所有ngx_http_module_t类型的模块的postconfiguration钩子函数。
+
+## 2.16 在函数ngx_mail_block中:
+```
+    ngx_mail_max_module = 0;
+    for (m = 0; ngx_modules[m]; m++) {
+        if (ngx_modules[m]->type != NGX_MAIL_MODULE) {
+            continue;
+        }
+
+        ngx_modules[m]->ctx_index = ngx_mail_max_module++;
+    }
+
+
+```
+不难看出，该段代码主要完成两点功能：
+1. 统计所有的ngx_mail_module_t类型的模块，存入变量ngx_mail_max_module中。
+2. 初始化每个ngx_mail_module_t类型模块的ctx_index变量，该变量表示每个该类变量在所有ngx_mail_module_t变量中的序号。
+
+mail与http类似，还有许多关于ngx_mail_module_t的ctx变量的钩子函数的调用，这里略过。
+
+## 2.17 在函数ngx_single_process_cycle中:
+```
+for (i = 0; ngx_modules[i]; i++) {
+        if (ngx_modules[i]->init_process) {
+            if (ngx_modules[i]->init_process(cycle) == NGX_ERROR) {
+                /* fatal */
+                exit(2);
+            }
+        }
+    }
+```
+以上代码调用所有模块的init_process钩子函数。
+
+## 2.18 在函数ngx_master_process_exit中:
+```
+    for (i = 0; ngx_modules[i]; i++) {
+        if (ngx_modules[i]->exit_master) {
+            ngx_modules[i]->exit_master(cycle);
+        }
+    }
+```
+以上代码调用所有模块的exit_process钩子函数。
+
+## 2.19 在函数ngx_worker_process_init函数中:
+```
+   for (i = 0; ngx_modules[i]; i++) {
+        if (ngx_modules[i]->init_process) {
+            if (ngx_modules[i]->init_process(cycle) == NGX_ERROR) {
+                /* fatal */
+                exit(2);
+            }
+        }
+    }
+```
+上面的代码调用所有模块的init_process钩子函数.
+
+## 2.20 在函数ngx_worker_process_exit中:
+```
+    for (i = 0; ngx_modules[i]; i++) {
+        if (ngx_modules[i]->exit_process) {
+            ngx_modules[i]->exit_process(cycle);
+        }
+    }
+```
+上面的代码调用了所有模块的exit_process钩子函数。
