@@ -131,6 +131,7 @@ Nginx中目前主要包含如下几个ctx类型：
 2. ngx_event_module_t
 3. ngx_http_module_t
 4. ngx_mail_module_t
+5. 其他
 
 ## 4.1 ngx_core_module_t
 ngx_core_module_t的定义为:
@@ -307,3 +308,26 @@ Nginx-1.6.2中，ngx_mail_module_t类型的模块（即ctx成员为ngx_mail_modu
 7. ngx_mail_ssl_module
 
 这些模块的type成员均为常量NGX_MAIL_MODULE，在遍历ngx_modules数组时，经常用该变量作为ngx_mail_module_t类型模块的标记。
+
+## 4.5其他模块
+这里，主要是ngx_conf_module,其定义为:
+```
+ngx_module_t  ngx_conf_module = {
+    NGX_MODULE_V1,
+    NULL,                                  /* module context */
+    ngx_conf_commands,                     /* module directives */
+    NGX_CONF_MODULE,                       /* module type */
+    NULL,                                  /* init master */
+    NULL,                                  /* init module */
+    NULL,                                  /* init process */
+    NULL,                                  /* init thread */
+    NULL,                                  /* exit thread */
+    ngx_conf_flush_files,                  /* exit process */
+    NULL,                                  /* exit master */
+    NGX_MODULE_V1_PADDING
+};
+```
+该模块有如下两点值得注意:
+
+1. 如前所述，其ctx成员为NULL.
+2. 其type为NGX_CONF_MODULE
