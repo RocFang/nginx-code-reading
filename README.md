@@ -14,7 +14,3 @@ make
 # Thanks to
 
 https://code.google.com/p/nginxsrp/wiki/NginxCodeReview
-
-# Some articles
-
-I write some articles about Nginx in docs direcotry.
