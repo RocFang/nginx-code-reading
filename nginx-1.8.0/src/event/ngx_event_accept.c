@@ -357,6 +357,11 @@ ngx_event_accept(ngx_event_t *ev)
         log->data = NULL;
         log->handler = NULL;
 
+/* 
+ls->handler 在 ngx_http_add_listening 中被设置为 ngx_http_init_connection，过程为:
+ngx_http_block->ngx_http_optimize_servers->ngx_http_init_listening->ngx_http_add_listening,在 ngx_http_add_listening 中，
+执行 ls->handler = ngx_http_init_connection
+*/
         ls->handler(c);
 
         if (ngx_event_flags & NGX_USE_KQUEUE_EVENT) {
