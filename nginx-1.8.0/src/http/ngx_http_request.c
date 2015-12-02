@@ -191,6 +191,15 @@ ngx_http_header_t  ngx_http_headers_in[] = {
 };
 
 
+/*
+ngx_http_init_connection 在 ngx_http_add_listening 中被赋值给 ls->handler, 然后在 ngx_event_accept 中执行。 
+1. 赋值过程
+ngx_http_block->ngx_http_optimize_servers->ngx_http_init_listening->ngx_http_add_listening,在 ngx_http_add_listening 中，
+执行 ls->handler = ngx_http_init_connection
+
+2. 执行过程
+在ngx_event_accept中，ls->handler(c);
+*/
 void
 ngx_http_init_connection(ngx_connection_t *c)
 {
