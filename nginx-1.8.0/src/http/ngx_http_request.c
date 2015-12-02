@@ -192,14 +192,14 @@ ngx_http_header_t  ngx_http_headers_in[] = {
 
 
 /*
-ngx_http_init_connection åœ¨ ngx_http_add_listening ä¸­è¢«èµ‹å€¼ç»™ ls->handler, ç„¶åŽåœ¨ ngx_event_accept ä¸­æ‰§è¡Œã€‚ 
-1. èµ‹å€¼è¿‡ç¨‹
-ngx_http_block->ngx_http_optimize_servers->ngx_http_init_listening->ngx_http_add_listening,åœ¨ ngx_http_add_listening ä¸­ï¼Œ
-æ‰§è¡Œ ls->handler = ngx_http_init_connection
-
-2. æ‰§è¡Œè¿‡ç¨‹
-åœ¨ngx_event_acceptä¸­ï¼Œls->handler(c);
+ngx_http_init_connection ÔÚ ngx_http_add_listening ÖÐ±»¸³Öµ¸ø ls->handler, È»ºóÔÚ ngx_event_accept ÖÐÖ´ÐÐ¡£ 
+1. ¸³Öµ¹ý³Ì
+ngx_http_block->ngx_http_optimize_servers->ngx_http_init_listening->ngx_http_add_listening,ÔÚ ngx_http_add_listening ÖÐ£¬
+Ö´ÐÐ ls->handler = ngx_http_init_connection
+2. Ö´ÐÐ¹ý³Ì
+ÔÚngx_event_acceptÖÐ£¬ls->handler(c);
 */
+
 void
 ngx_http_init_connection(ngx_connection_t *c)
 {

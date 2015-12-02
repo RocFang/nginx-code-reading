@@ -358,9 +358,9 @@ ngx_event_accept(ngx_event_t *ev)
         log->handler = NULL;
 
 /* 
-ls->handler åœ¨ ngx_http_add_listening ä¸­è¢«è®¾ç½®ä¸º ngx_http_init_connectionï¼Œè¿‡ç¨‹ä¸º:
-ngx_http_block->ngx_http_optimize_servers->ngx_http_init_listening->ngx_http_add_listening,åœ¨ ngx_http_add_listening ä¸­ï¼Œ
-æ‰§è¡Œ ls->handler = ngx_http_init_connection
+ls->handler ÔÚ ngx_http_add_listening ÖĞ±»ÉèÖÃÎª ngx_http_init_connection£¬¹ı³ÌÎª:
+ngx_http_block->ngx_http_optimize_servers->ngx_http_init_listening->ngx_http_add_listening,
+ÔÚ ngx_http_add_listening ÖĞ£¬Ö´ĞĞ ls->handler = ngx_http_init_connection
 */
         ls->handler(c);
 
