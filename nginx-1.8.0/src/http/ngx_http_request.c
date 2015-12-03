@@ -924,7 +924,12 @@ ngx_http_ssl_servername(ngx_ssl_conn_t *ssl_conn, int *ad, void *arg)
 
 #endif
 
-
+/*
+由于请求行的长度是不定的，它与uri的长度相关。这意味着读事件被触发时，内核套接字缓冲区的大小未必足够接收到
+全部HTTP请求行，由此可以得出结论:调用一次ngx_http_process_request_line方法不一定能够做完这项工作。所以
+ngx_http_process_request_line方法也会作为读事件的回调方法，他可能会被epoll这个事件驱动机制多次调度，反复接收
+TCP流并使用状态机解析它们，直到确认接收到了完整的HTTP请求行，这个阶段才算完成，才会进入下一个阶段接收HTTP头部
+*/
 static void
 ngx_http_process_request_line(ngx_event_t *rev)
 {
@@ -941,6 +946,10 @@ ngx_http_process_request_line(ngx_event_t *rev)
                    "http process request line");
 
     if (rev->timedout) {
+/*
+首先检查这个读事件是否已经超时，如果ngx_event_t事件的timeout标志位1，则认为接收HTTP请求已经超时，调用
+ngx_http_close_request方法关闭请求，同时由ngx_http_process_request_line方法中返回
+*/
         ngx_log_error(NGX_LOG_INFO, c->log, NGX_ETIMEDOUT, "client timed out");
         c->timedout = 1;
         ngx_http_close_request(r, NGX_HTTP_REQUEST_TIME_OUT);
@@ -1212,6 +1221,9 @@ ngx_http_process_request_headers(ngx_event_t *rev)
                    "http process request header line");
 
     if (rev->timedout) {
+/*
+首先检查当前的读事件是否已经超时，如果超时，则关闭连接
+*/
         ngx_log_error(NGX_LOG_INFO, c->log, NGX_ETIMEDOUT, "client timed out");
         c->timedout = 1;
         ngx_http_close_request(r, NGX_HTTP_REQUEST_TIME_OUT);
@@ -1348,12 +1360,16 @@ ngx_http_process_request_headers(ngx_event_t *rev)
 
             r->http_state = NGX_HTTP_PROCESS_REQUEST_STATE;
 
+/*其中有virutal server的查找过程*/
             rc = ngx_http_process_request_header(r);
 
             if (rc != NGX_OK) {
                 return;
             }
 
+/*
+调用ngx_http_process_request方法开始使用各HTTP模块正式的在业务上处理HTTP请求
+*/
             ngx_http_process_request(r);
 
             return;
@@ -1846,7 +1862,9 @@ ngx_http_process_request_header(ngx_http_request_t *r)
     return NGX_OK;
 }
 
-
+/*
+正式的在业务上处理HTTP请求
+*/
 void
 ngx_http_process_request(ngx_http_request_t *r)
 {
@@ -1907,7 +1925,11 @@ ngx_http_process_request(ngx_http_request_t *r)
     }
 
 #endif
-
+/*
+由于现在已经开始准备调用各HTTP模块处理请求了，因此不再存在接收HTTP请求头部超时的问题，那就需要从定时器中把
+当前连接的读事件移除了。检查时间对应的timer_set标志位，为1时表示读事件已经添加到定时器中了，这时需要调用
+ngx_del_timer从定时器中移除读事件
+*/
     if (c->read->timer_set) {
         ngx_del_timer(c->read);
     }
@@ -1920,10 +1942,17 @@ ngx_http_process_request(ngx_http_request_t *r)
 #endif
 
 /*
-在此之前，c->read->heandler的值为ngx_http_process_request_headers
+在此之前，c->read->heandler的值为ngx_http_process_request_headers，从现在开始不会在需要接收HTTP请求行或请求头，
+所以需要重新设置当前连接读/写事件的回调方法。在这一步骤中，将同时把读事件、写事件的回调方法都设置为ngx_http_request_handler
+方法，请求的后续处理都是通过ngx_http_request_handler方法进行的
 */
     c->read->handler = ngx_http_request_handler;
     c->write->handler = ngx_http_request_handler;
+/*
+当再次有读事件来到时，将会调用read_event_handler方法处理请求。这里将其设置为ngx_http_block_reading方法，这个方法可以认为
+不做任何事，它的意义在于，目前已经开始处理HTTP请求，除非某个HTTP模块重新设置了read_event_handler方法，否则任何读事件都将
+得不到处理，也可以认为读事件被阻塞了。
+*/
     r->read_event_handler = ngx_http_block_reading;
 
     ngx_http_handler(r);
