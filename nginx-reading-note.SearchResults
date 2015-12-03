@@ -1,0 +1,8 @@
+---- ngx_http_request_handler Matches (7 in 2 files) ----
+Ngx_http_request.c (nginx-1.8.0\src\http):static void ngx_http_request_handler(ngx_event_t *ev);
+Ngx_http_request.c (nginx-1.8.0\src\http):    c->read->handler = ngx_http_request_handler;
+Ngx_http_request.c (nginx-1.8.0\src\http):    c->write->handler = ngx_http_request_handler;
+Ngx_http_request.c (nginx-1.8.0\src\http):ngx_http_request_handler(ngx_event_t *ev)
+Ngx_http_request.c (nginx-1.8.0\src\http):        c->read->handler = ngx_http_request_handler;
+Ngx_http_request.c (nginx-1.8.0\src\http):        c->write->handler = ngx_http_request_handler;
+Ngx_http_request.h (nginx-1.8.0\src\http):ngx_http_request_handler方法来处理，而这个方法中对于可读事件的处理就是调用read_event_handler处理请求。

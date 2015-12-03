@@ -365,6 +365,10 @@ ngx_http_init_connection(ngx_connection_t *c)
             return;
         }
 
+/*
+rev->handler在前面已经被赋值为ngx_http_wait_request_handler,此时调用。
+注意:在执行ngx_http_wait_request_handler中，rev->handler会数次被修改。
+*/
         rev->handler(rev);
         return;
     }
@@ -378,7 +382,12 @@ ngx_http_init_connection(ngx_connection_t *c)
     }
 }
 
-
+/*
+被作为回调使用。
+使用场景1:
+在ngx_http_init_connection中用来赋值给connection->read的handler,并马上被调用，此时参数rev即使ngx_http_init_connection
+的参数ngx_connection_t中的read成员。
+*/
 static void
 ngx_http_wait_request_handler(ngx_event_t *rev)
 {
@@ -504,6 +513,12 @@ ngx_http_wait_request_handler(ngx_event_t *rev)
         return;
     }
 
+/*
+注意:
+1.在调用ngx_http_wait_request_handler之前，recv->handler为ngx_http_wait_request_handler，在这里却改成了
+ngx_http_process_request_line
+2.在下面执行的ngx_http_process_request_line中，又将rev->handler设置为ngx_http_process_request_headers
+*/
     rev->handler = ngx_http_process_request_line;
     ngx_http_process_request_line(rev);
 }
@@ -1904,6 +1919,9 @@ ngx_http_process_request(ngx_http_request_t *r)
     r->stat_writing = 1;
 #endif
 
+/*
+在此之前，c->read->heandler的值为ngx_http_process_request_headers
+*/
     c->read->handler = ngx_http_request_handler;
     c->write->handler = ngx_http_request_handler;
     r->read_event_handler = ngx_http_block_reading;
