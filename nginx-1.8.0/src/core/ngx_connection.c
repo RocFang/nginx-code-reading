@@ -1119,7 +1119,7 @@ ngx_connection_error(ngx_connection_t *c, ngx_err_t err, char *text)
 
     if ((err == NGX_ECONNRESET
 #if (NGX_WIN32)
-         || err == NGX_ECONNABORTED
+//deleted by fangpeng
 #endif
         ) && c->log_error == NGX_ERROR_IGNORE_ECONNRESET)
     {
@@ -1127,15 +1127,13 @@ ngx_connection_error(ngx_connection_t *c, ngx_err_t err, char *text)
     }
 
 #if (NGX_SOLARIS)
-    if (err == NGX_EINVAL && c->log_error == NGX_ERROR_IGNORE_EINVAL) {
-        return 0;
-    }
+//deleted by fangpeng
 #endif
 
     if (err == 0
         || err == NGX_ECONNRESET
 #if (NGX_WIN32)
-        || err == NGX_ECONNABORTED
+		//deleted by fangpeng
 #else
         || err == NGX_EPIPE
 #endif

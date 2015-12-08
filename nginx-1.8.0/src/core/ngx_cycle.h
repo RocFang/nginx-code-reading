@@ -49,6 +49,7 @@ struct ngx_cycle_s {
 
     ngx_queue_t               reusable_connections_queue;
 
+//动态数据，每个数组元素存储着ngx_listening_t成员，表示监听端口及相关的参数
     ngx_array_t               listening;
     ngx_array_t               paths;
     ngx_list_t                open_files;

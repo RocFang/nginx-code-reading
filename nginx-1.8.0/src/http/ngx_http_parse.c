@@ -18,7 +18,7 @@ static uint32_t  usual[] = {
 
                 /* _^]\ [ZYX WVUT SRQP  ONML KJIH GFED CBA@ */
 #if (NGX_WIN32)
-    0xefffffff, /* 1110 1111 1111 1111  1111 1111 1111 1111 */
+//deleted by fangpeng
 #else
     0xffffffff, /* 1111 1111 1111 1111  1111 1111 1111 1111 */
 #endif
@@ -513,10 +513,7 @@ ngx_http_parse_request_line(ngx_http_request_t *r, ngx_buf_t *b)
                 state = sw_uri;
                 break;
 #if (NGX_WIN32)
-            case '\\':
-                r->complex_uri = 1;
-                state = sw_uri;
-                break;
+//deleted by fangpeng
 #endif
             case '?':
                 r->args_start = p + 1;
@@ -547,11 +544,7 @@ ngx_http_parse_request_line(ngx_http_request_t *r, ngx_buf_t *b)
             switch (ch) {
             case '/':
 #if (NGX_WIN32)
-                if (r->uri_ext == p) {
-                    r->complex_uri = 1;
-                    state = sw_uri;
-                    break;
-                }
+//deleted by fangpeng
 #endif
                 r->uri_ext = NULL;
                 state = sw_after_slash_in_uri;
@@ -573,10 +566,7 @@ ngx_http_parse_request_line(ngx_http_request_t *r, ngx_buf_t *b)
                 r->http_minor = 9;
                 goto done;
 #if (NGX_WIN32)
-            case '\\':
-                r->complex_uri = 1;
-                state = sw_after_slash_in_uri;
-                break;
+//deleted by fangpeng
 #endif
             case '%':
                 r->quoted_uri = 1;
@@ -1146,10 +1136,7 @@ ngx_http_parse_uri(ngx_http_request_t *r)
                 state = sw_uri;
                 break;
 #if (NGX_WIN32)
-            case '\\':
-                r->complex_uri = 1;
-                state = sw_uri;
-                break;
+//deleted by fangpeng
 #endif
             case '?':
                 r->args_start = p + 1;
@@ -1178,11 +1165,7 @@ ngx_http_parse_uri(ngx_http_request_t *r)
             switch (ch) {
             case '/':
 #if (NGX_WIN32)
-                if (r->uri_ext == p) {
-                    r->complex_uri = 1;
-                    state = sw_uri;
-                    break;
-                }
+//deleted by fangpeng
 #endif
                 r->uri_ext = NULL;
                 state = sw_after_slash_in_uri;
@@ -1194,10 +1177,7 @@ ngx_http_parse_uri(ngx_http_request_t *r)
                 r->space_in_uri = 1;
                 break;
 #if (NGX_WIN32)
-            case '\\':
-                r->complex_uri = 1;
-                state = sw_after_slash_in_uri;
-                break;
+//deleted by fangpeng
 #endif
             case '%':
                 r->quoted_uri = 1;
@@ -1289,36 +1269,11 @@ ngx_http_parse_complex_uri(ngx_http_request_t *r, ngx_uint_t merge_slashes)
 
             switch (ch) {
 #if (NGX_WIN32)
-            case '\\':
-                if (u - 2 >= r->uri.data
-                    && *(u - 1) == '.' && *(u - 2) != '.')
-                {
-                    u--;
-                }
-
-                r->uri_ext = NULL;
-
-                if (p == r->uri_start + r->uri.len) {
-
-                    /*
-                     * we omit the last "\" to cause redirect because
-                     * the browsers do not treat "\" as "/" in relative URL path
-                     */
-
-                    break;
-                }
-
-                state = sw_slash;
-                *u++ = '/';
-                break;
+//deleted by fangpeng
 #endif
             case '/':
 #if (NGX_WIN32)
-                if (u - 2 >= r->uri.data
-                    && *(u - 1) == '.' && *(u - 2) != '.')
-                {
-                    u--;
-                }
+//deleted by fangpeng
 #endif
                 r->uri_ext = NULL;
                 state = sw_slash;
@@ -1359,8 +1314,7 @@ ngx_http_parse_complex_uri(ngx_http_request_t *r, ngx_uint_t merge_slashes)
 
             switch (ch) {
 #if (NGX_WIN32)
-            case '\\':
-                break;
+//deleted by fangpeng
 #endif
             case '/':
                 if (!merge_slashes) {
@@ -1402,7 +1356,7 @@ ngx_http_parse_complex_uri(ngx_http_request_t *r, ngx_uint_t merge_slashes)
 
             switch (ch) {
 #if (NGX_WIN32)
-            case '\\':
+//deleted by fangpeng
 #endif
             case '/':
                 state = sw_slash;
@@ -1443,7 +1397,7 @@ ngx_http_parse_complex_uri(ngx_http_request_t *r, ngx_uint_t merge_slashes)
 
             switch (ch) {
 #if (NGX_WIN32)
-            case '\\':
+//deleted by fangpeng
 #endif
             case '/':
                 state = sw_slash;

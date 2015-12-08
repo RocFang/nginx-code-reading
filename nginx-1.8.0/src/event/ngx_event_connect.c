@@ -89,8 +89,7 @@ ngx_event_connect_peer(ngx_peer_connection_t *pc)
         c->tcp_nodelay = NGX_TCP_NODELAY_DISABLED;
 
 #if (NGX_SOLARIS)
-        /* Solaris's sendfilev() supports AF_NCA, AF_INET, and AF_INET6 */
-        c->sendfile = 0;
+//deleted by fangpeng
 #endif
     }
 
@@ -121,8 +120,7 @@ ngx_event_connect_peer(ngx_peer_connection_t *pc)
 
         if (err != NGX_EINPROGRESS
 #if (NGX_WIN32)
-            /* Winsock returns WSAEWOULDBLOCK (NGX_EAGAIN) */
-            && err != NGX_EAGAIN
+//deleted by fangpeng
 #endif
             )
         {

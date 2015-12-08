@@ -1125,12 +1125,7 @@ static char *
 ngx_set_user(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
 #if (NGX_WIN32)
-
-    ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
-                       "\"user\" is not supported, ignored");
-
-    return NGX_CONF_OK;
-
+//deleted by fangpeng
 #else
 
     ngx_core_conf_t  *ccf = conf;

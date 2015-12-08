@@ -27,7 +27,7 @@
 
 
 #elif (NGX_SOLARIS)
-#include <ngx_solaris_config.h>
+//deleted by fangpeng
 
 
 #elif (NGX_DARWIN)
@@ -35,9 +35,7 @@
 
 
 #elif (NGX_WIN32)
-#include <ngx_win32_config.h>
-
-
+//deleted by fangpeng
 #else /* POSIX */
 #include <ngx_posix_config.h>
 

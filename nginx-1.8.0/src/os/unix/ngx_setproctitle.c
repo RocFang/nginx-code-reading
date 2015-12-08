@@ -81,10 +81,7 @@ ngx_setproctitle(char *title)
     u_char     *p;
 
 #if (NGX_SOLARIS)
-
-    ngx_int_t   i;
-    size_t      size;
-
+//deleted by fangpeng
 #endif
 
     ngx_os_argv[1] = NULL;
@@ -95,33 +92,7 @@ ngx_setproctitle(char *title)
     p = ngx_cpystrn(p, (u_char *) title, ngx_os_argv_last - (char *) p);
 
 #if (NGX_SOLARIS)
-
-    size = 0;
-
-    for (i = 0; i < ngx_argc; i++) {
-        size += ngx_strlen(ngx_argv[i]) + 1;
-    }
-
-    if (size > (size_t) ((char *) p - ngx_os_argv[0])) {
-
-        /*
-         * ngx_setproctitle() is too rare operation so we use
-         * the non-optimized copies
-         */
-
-        p = ngx_cpystrn(p, (u_char *) " (", ngx_os_argv_last - (char *) p);
-
-        for (i = 0; i < ngx_argc; i++) {
-            p = ngx_cpystrn(p, (u_char *) ngx_argv[i],
-                            ngx_os_argv_last - (char *) p);
-            p = ngx_cpystrn(p, (u_char *) " ", ngx_os_argv_last - (char *) p);
-        }
-
-        if (*(p - 1) == ' ') {
-            *(p - 1) = ')';
-        }
-    }
-
+//deleted by fangpeng
 #endif
 
     if (ngx_os_argv_last - (char *) p) {

@@ -3056,7 +3056,7 @@ ngx_http_core_server(ngx_conf_t *cf, ngx_command_t *cmd, void *dummy)
 
         sin->sin_family = AF_INET;
 #if (NGX_WIN32)
-        sin->sin_port = htons(80);
+//deleted by fangpeng
 #else
         sin->sin_port = htons((getuid() == 0) ? 80 : 8000);
 #endif

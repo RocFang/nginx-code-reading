@@ -22,12 +22,7 @@
 #if !defined NGX_SETPROCTITLE_USES_ENV
 
 #if (NGX_SOLARIS)
-
-#define NGX_SETPROCTITLE_USES_ENV  1
-#define NGX_SETPROCTITLE_PAD       ' '
-
-ngx_int_t ngx_init_setproctitle(ngx_log_t *log);
-void ngx_setproctitle(char *title);
+//deleted by fangpeng
 
 #elif (NGX_LINUX) || (NGX_DARWIN)
 

@@ -1,8 +1,13 @@
----- ngx_http_request_handler Matches (7 in 2 files) ----
-Ngx_http_request.c (nginx-1.8.0\src\http):static void ngx_http_request_handler(ngx_event_t *ev);
-Ngx_http_request.c (nginx-1.8.0\src\http):    c->read->handler = ngx_http_request_handler;
-Ngx_http_request.c (nginx-1.8.0\src\http):    c->write->handler = ngx_http_request_handler;
-Ngx_http_request.c (nginx-1.8.0\src\http):ngx_http_request_handler(ngx_event_t *ev)
-Ngx_http_request.c (nginx-1.8.0\src\http):        c->read->handler = ngx_http_request_handler;
-Ngx_http_request.c (nginx-1.8.0\src\http):        c->write->handler = ngx_http_request_handler;
-Ngx_http_request.h (nginx-1.8.0\src\http):ngx_http_request_handler方法来处理，而这个方法中对于可读事件的处理就是调用read_event_handler处理请求。
+---- ngx_http_run_posted_requests Matches (12 in 5 files) ----
+Ngx_http.h (nginx-1.8.0\src\http):void ngx_http_run_posted_requests(ngx_connection_t *c);
+Ngx_http_file_cache.c (nginx-1.8.0\src\http):    ngx_http_run_posted_requests(c);
+Ngx_http_file_cache.c (nginx-1.8.0\src\http):    ngx_http_run_posted_requests(c);
+Ngx_http_file_cache.c (nginx-1.8.0\src\http):    ngx_http_run_posted_requests(c);
+Ngx_http_request.c (nginx-1.8.0\src\http):    ngx_http_run_posted_requests(c);
+Ngx_http_request.c (nginx-1.8.0\src\http):    ngx_http_run_posted_requests(c);
+Ngx_http_request.c (nginx-1.8.0\src\http):ngx_http_run_posted_requests(ngx_connection_t *c)
+Ngx_http_request.h (nginx-1.8.0\src\http):所有的子请求都是通过posted_requests这个单链表链接起来的，执行post子请求调用的ngx_http_run_posted_requests方法
+Ngx_http_upstream.c (nginx-1.8.0\src\http):    ngx_http_run_posted_requests(c);
+Ngx_http_upstream.c (nginx-1.8.0\src\http):    ngx_http_run_posted_requests(c);
+Ngx_http_upstream.c (nginx-1.8.0\src\http):        ngx_http_run_posted_requests(c);
+Ngx_http_upstream.c (nginx-1.8.0\src\http):    ngx_http_run_posted_requests(c);

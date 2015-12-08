@@ -33,11 +33,7 @@ ngx_get_full_name(ngx_pool_t *pool, ngx_str_t *prefix, ngx_str_t *name)
     len = prefix->len;
 
 #if (NGX_WIN32)
-
-    if (rc == 2) {
-        len = rc;
-    }
-
+//deleted by fangpeng
 #endif
 
     n = ngx_pnalloc(pool, len + name->len + 1);
@@ -59,40 +55,7 @@ static ngx_int_t
 ngx_test_full_name(ngx_str_t *name)
 {
 #if (NGX_WIN32)
-    u_char  c0, c1;
-
-    c0 = name->data[0];
-
-    if (name->len < 2) {
-        if (c0 == '/') {
-            return 2;
-        }
-
-        return NGX_DECLINED;
-    }
-
-    c1 = name->data[1];
-
-    if (c1 == ':') {
-        c0 |= 0x20;
-
-        if ((c0 >= 'a' && c0 <= 'z')) {
-            return NGX_OK;
-        }
-
-        return NGX_DECLINED;
-    }
-
-    if (c1 == '/') {
-        return NGX_OK;
-    }
-
-    if (c0 == '/') {
-        return 2;
-    }
-
-    return NGX_DECLINED;
-
+//deleted by fangpeng
 #else
 
     if (name->data[0] == '/') {
@@ -278,7 +241,7 @@ ngx_create_full_path(u_char *dir, ngx_uint_t access)
     err = 0;
 
 #if (NGX_WIN32)
-    p = dir + 3;
+	//deleted by fangpeng
 #else
     p = dir + 1;
 #endif
@@ -682,15 +645,7 @@ ngx_ext_rename_file(ngx_str_t *src, ngx_str_t *to, ngx_ext_rename_file_t *ext)
     }
 
 #if (NGX_WIN32)
-
-    if (err == NGX_EEXIST) {
-        err = ngx_win32_rename_file(src, to, ext->log);
-
-        if (err == 0) {
-            return NGX_OK;
-        }
-    }
-
+//deleted by fangpeng
 #endif
 
     if (err == NGX_EXDEV) {

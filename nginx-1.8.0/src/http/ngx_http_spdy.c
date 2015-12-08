@@ -735,8 +735,7 @@ ngx_http_spdy_send_output_queue(ngx_http_spdy_connection_t *sc)
             == -1)
         {
 #if (NGX_SOLARIS)
-            /* Solaris returns EINVAL if a socket has been shut down */
-            c->log_error = NGX_ERROR_IGNORE_EINVAL;
+//deleted by fangpeng
 #endif
 
             ngx_connection_error(c, ngx_socket_errno,

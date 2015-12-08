@@ -298,8 +298,7 @@ ngx_log_errno(u_char *buf, u_char *last, ngx_err_t err)
     }
 
 #if (NGX_WIN32)
-    buf = ngx_slprintf(buf, last, ((unsigned) err < 0x80000000)
-                                       ? " (%d: " : " (%Xd: ", err);
+//deleted by fangpeng
 #else
     buf = ngx_slprintf(buf, last, " (%d: ", err);
 #endif
@@ -340,7 +339,7 @@ ngx_log_init(u_char *prefix)
     p = NULL;
 
 #if (NGX_WIN32)
-    if (name[1] != ':') {
+//deleted by fangpeng
 #else
     if (name[0] != '/') {
 #endif
@@ -384,9 +383,7 @@ ngx_log_init(u_char *prefix)
                        "[alert] could not open error log file: "
                        ngx_open_file_n " \"%s\" failed", name);
 #if (NGX_WIN32)
-        ngx_event_log(ngx_errno,
-                       "could not open error log file: "
-                       ngx_open_file_n " \"%s\" failed", name);
+//deleted by fangpeng
 #endif
 
         ngx_log_file.fd = ngx_stderr;

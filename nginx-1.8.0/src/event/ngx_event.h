@@ -69,8 +69,7 @@ struct ngx_event_s {
     unsigned         posted:1;
 
 #if (NGX_WIN32)
-    /* setsockopt(SO_UPDATE_ACCEPT_CONTEXT) was successful */
-    unsigned         accept_context_updated:1;
+//deleted by fangpeng
 #endif
 
 #if (NGX_HAVE_KQUEUE)
@@ -510,9 +509,7 @@ ngx_int_t ngx_handle_write_event(ngx_event_t *wev, size_t lowat);
 
 
 #if (NGX_WIN32)
-void ngx_event_acceptex(ngx_event_t *ev);
-ngx_int_t ngx_event_post_acceptex(ngx_listening_t *ls, ngx_uint_t n);
-u_char *ngx_acceptex_log_error(ngx_log_t *log, u_char *buf, size_t len);
+//deleted by fangpeng
 #endif
 
 
@@ -527,7 +524,7 @@ ngx_int_t ngx_send_lowat(ngx_connection_t *c, size_t lowat);
 #include <ngx_event_posted.h>
 
 #if (NGX_WIN32)
-#include <ngx_iocp_module.h>
+//deleted by fangpeng
 #endif
 
 

@@ -905,29 +905,7 @@ ngx_http_dav_copy_dir_time(ngx_tree_ctx_t *ctx, ngx_str_t *path)
                    "http copy dir time to: \"%s\"", dir);
 
 #if (NGX_WIN32)
-    {
-    ngx_fd_t  fd;
-
-    fd = ngx_open_file(dir, NGX_FILE_RDWR, NGX_FILE_OPEN, 0);
-
-    if (fd == NGX_INVALID_FILE) {
-        (void) ngx_http_dav_error(ctx->log, ngx_errno, 0, ngx_open_file_n, dir);
-        goto failed;
-    }
-
-    if (ngx_set_file_time(NULL, fd, ctx->mtime) != NGX_OK) {
-        ngx_log_error(NGX_LOG_ALERT, ctx->log, ngx_errno,
-                      ngx_set_file_time_n " \"%s\" failed", dir);
-    }
-
-    if (ngx_close_file(fd) == NGX_FILE_ERROR) {
-        ngx_log_error(NGX_LOG_ALERT, ctx->log, ngx_errno,
-                      ngx_close_file_n " \"%s\" failed", dir);
-    }
-    }
-
-failed:
-
+//deleted by fangpeng
 #else
 
     if (ngx_set_file_time(dir, 0, ctx->mtime) != NGX_OK) {

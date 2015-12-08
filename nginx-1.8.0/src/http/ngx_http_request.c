@@ -1138,53 +1138,7 @@ ngx_http_process_request_uri(ngx_http_request_t *r)
     }
 
 #if (NGX_WIN32)
-    {
-    u_char  *p, *last;
-
-    p = r->uri.data;
-    last = r->uri.data + r->uri.len;
-
-    while (p < last) {
-
-        if (*p++ == ':') {
-
-            /*
-             * this check covers "::$data", "::$index_allocation" and
-             * ":$i30:$index_allocation"
-             */
-
-            if (p < last && *p == '$') {
-                ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
-                              "client sent unsafe win32 URI");
-                ngx_http_finalize_request(r, NGX_HTTP_BAD_REQUEST);
-                return NGX_ERROR;
-            }
-        }
-    }
-
-    p = r->uri.data + r->uri.len - 1;
-
-    while (p > r->uri.data) {
-
-        if (*p == ' ') {
-            p--;
-            continue;
-        }
-
-        if (*p == '.') {
-            p--;
-            continue;
-        }
-
-        break;
-    }
-
-    if (p != r->uri.data + r->uri.len - 1) {
-        r->uri.len = p + 1 - r->uri.data;
-        ngx_http_set_exten(r);
-    }
-
-    }
+//deleted by fangpeng
 #endif
 
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
@@ -3083,8 +3037,7 @@ ngx_http_set_keepalive(ngx_http_request_t *r)
             == -1)
         {
 #if (NGX_SOLARIS)
-            /* Solaris returns EINVAL if a socket has been shut down */
-            c->log_error = NGX_ERROR_IGNORE_EINVAL;
+//deleted by fangpeng
 #endif
 
             ngx_connection_error(c, ngx_socket_errno,
