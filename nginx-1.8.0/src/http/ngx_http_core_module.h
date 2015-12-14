@@ -115,22 +115,51 @@ typedef struct {
 
 
 typedef enum {
+//在接收到完整的http头部后处理的http阶段
     NGX_HTTP_POST_READ_PHASE = 0,
 
+//在将请求的uri与location表达式匹配前，修改请求的uri(所谓的重定向)是一个独立的http阶段
     NGX_HTTP_SERVER_REWRITE_PHASE,
 
+ /*
+ 根据请求的uri寻找匹配的location表达式，这个阶段只能由ngx_http_core_module模块实现，不建议其他http模块重新定义这一阶段的行为
+ */
     NGX_HTTP_FIND_CONFIG_PHASE,
+
+//在NGX_HTTP_FIND_CONFIG_PHASE阶段寻找到匹配的location之后再修改请求的uri
     NGX_HTTP_REWRITE_PHASE,
+/*
+这一阶段是用于在rewirte重写ur后，防止错误的nginx.conf配置导致死循环(递归的修改uri),因此，这一阶段仅由ngx_http_core_module
+模块处理。目前控制死循环的方式很简单，首先检查rewrite的次数，如果一个请求超过了10次重定向，就认为进入了rewrite死循环，这时
+在NGX_HTTP_POST_REWRITE_PHASE阶段就会向用户返回500，表示服务器内部错误
+*/
     NGX_HTTP_POST_REWRITE_PHASE,
 
+//表示在处理NGX_HTTP_ACCESS_PHASE阶段决定请求的访问权限前，http模块可以介入的处理阶段
     NGX_HTTP_PREACCESS_PHASE,
 
+//这个阶段用于让http模块判断是否允许这个请求访问nginx服务器
     NGX_HTTP_ACCESS_PHASE,
+
+//在NGX_HTTP_ACCESS_PHASE阶段中，当http模块的handler处理函数返回不允许访问的错误码时(403,405)，这里将负责向用户
+//发送拒绝服务的错误响应。因此，这个阶段实际上用于给NGX_HTTP_ACCESS_PHASE阶段收尾。
     NGX_HTTP_POST_ACCESS_PHASE,
 
+/*
+这个阶段完全是为try_files配置项而设立的，当Http请求访问静态文件资源时，try_files配置项可以是这个请求顺序的访问多个静态文件资源，
+如果某次访问失败，则继续访问try_files中指定的下一个静态资源，这个功能完全是在NGX_HTTP_TRY_FILES_PHASE阶段中实现的
+*/
     NGX_HTTP_TRY_FILES_PHASE,
+
+/*
+用于处理HTP请求内容的阶段，这是大部分HTTP模块最愿意介入的阶段
+*/
     NGX_HTTP_CONTENT_PHASE,
 
+/*
+处理完请求后记录日志的阶段。例如,ngx_http_log_module就在这个阶段中加入了一个handler处理方法，使得每个http请求处理完后会记录
+access_log访问日志
+*/
     NGX_HTTP_LOG_PHASE
 } ngx_http_phases;
 
@@ -140,13 +169,21 @@ typedef ngx_int_t (*ngx_http_phase_handler_pt)(ngx_http_request_t *r,
     ngx_http_phase_handler_t *ph);
 
 struct ngx_http_phase_handler_s {
+//每个handler方法必须对应着一个checker方法，这个checker方法由http框架实现
     ngx_http_phase_handler_pt  checker;
+//每个http模块实现的方法
     ngx_http_handler_pt        handler;
     ngx_uint_t                 next;
 };
 
 
 typedef struct {
+/*
+handlers数组保存了请求需要经历的所有回调方法，而server_rewrite_index则是handlers数组中
+NGX_HTTP_SERVER_REWRITE_PHASE处理阶段的第一个nx_http_phase_handler_t回调方法所处的位置
+
+handlers:由ngx_http_phase_handler_t结构体组成的数组，每一个数组成员代表着一个http模块所添加的一个处理方法
+*/
     ngx_http_phase_handler_t  *handlers;
     ngx_uint_t                 server_rewrite_index;
     ngx_uint_t                 location_rewrite_index;
@@ -161,6 +198,7 @@ typedef struct {
 typedef struct {
     ngx_array_t                servers;         /* ngx_http_core_srv_conf_t */
 
+//http框架初始化后各个http模块构造的处理方法将组成phase_engine
     ngx_http_phase_engine_t    phase_engine;
 
     ngx_hash_t                 headers_in_hash;

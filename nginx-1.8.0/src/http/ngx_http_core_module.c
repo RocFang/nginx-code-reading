@@ -822,6 +822,10 @@ ngx_http_handler(ngx_http_request_t *r)
     r->connection->unexpected_eof = 0;
 
     if (!r->internal) {
+/*	
+检查ngx_http_request_t结构体的internal标志位，如果为0时，表示不需要重定向(如刚开始处理请求时)，将
+phase_handler序号置为0，意味着从ngx_http_phase_engine_t指定数组的第一个回调方法开始执行
+*/
         switch (r->headers_in.connection_type) {
         case 0:
             r->keepalive = (r->http_version > NGX_HTTP_VERSION_10);
@@ -841,6 +845,17 @@ ngx_http_handler(ngx_http_request_t *r)
         r->phase_handler = 0;
 
     } else {
+ /*
+ 如果internal不为0，则表示请求当前需要做内部跳转，将要把结构体中的phase_handler序号置为server_rewrite_index。
+ 注意，ngx_http_phase_engine_t结构体中的handlers动态数组中保存了请求需要经历的所有回调方法，而server_rewrite_index
+ 则是handlers数组中NGX_HTTP_SERVER_REWRITE_PHASE处理阶段的第一个ngx_http_phase_handler_t回调方法所处的位置。
+ 究竟handelers数组是怎么使用的呢?事实上它要配合ngx_http_request_t结构体中的phase_handler序号使用，由phase_handler
+ 指定着请求将要执行的handlers数组中的方法位置。注意，handlers数组中的方法都是由各个http模块实现的，这就是所有http
+ 模块能够共同处理请求的原因。
+
+ 在这里，将phase_handler序号设置为server_rewrite_index，这意味着无论之前执行到哪一个阶段，马上都要重新从NGX_HTTP_SERVER_REWRITE_PHASE阶段
+ 开始再次执行，这是Nginx的请求可以反复rewrite重定向的基础。
+ */
         cmcf = ngx_http_get_module_main_conf(r, ngx_http_core_module);
         r->phase_handler = cmcf->phase_engine.server_rewrite_index;
     }
@@ -853,6 +868,9 @@ ngx_http_handler(ngx_http_request_t *r)
 #endif
 
     r->write_event_handler = ngx_http_core_run_phases;
+/*
+调用ngx_http_core_run_phases方法，该方法将开始调用各个http模块共同处理请求。
+*/
     ngx_http_core_run_phases(r);
 }
 

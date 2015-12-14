@@ -1911,6 +1911,7 @@ ngx_del_timer从定时器中移除读事件
 
     ngx_http_handler(r);
 
+//调用ngx_http_run_posted_requests方法执行post请求
     ngx_http_run_posted_requests(c);
 }
 

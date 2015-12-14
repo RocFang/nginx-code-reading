@@ -444,6 +444,9 @@ ngx_http_init_headers_in_hash(ngx_conf_t *cf, ngx_http_core_main_conf_t *cmcf)
 }
 
 
+/*
+在ngx_http_block中被调用，调用位置位于ngx_http_optimize_servers之前
+*/
 static ngx_int_t
 ngx_http_init_phase_handlers(ngx_conf_t *cf, ngx_http_core_main_conf_t *cmcf)
 {
