@@ -169,10 +169,19 @@ typedef ngx_int_t (*ngx_http_phase_handler_pt)(ngx_http_request_t *r,
     ngx_http_phase_handler_t *ph);
 
 struct ngx_http_phase_handler_s {
-//每个handler方法必须对应着一个checker方法，这个checker方法由http框架实现
+/*
+每个handler方法必须对应着一个checker方法，这个checker方法由http框架实现
+在处理到某一个http阶段时，http框架将会在checker方法已实现的前提下首先调用checker方法来处理请求，而不会直接调用任何阶段中的
+handler方法，只有在checker方法中才会去调用handler方法。因此，事实上所有的checker方法都是由框架中的ngx_http_core_module模块
+实现的，且普通的http模块无法重定义checker方法
+*/
     ngx_http_phase_handler_pt  checker;
-//每个http模块实现的方法
+//每个http模块实现的方法，除了ngx_http_core_module模块以外的http模块，只能通过定义handler方法才能介入某一个http处理阶段以处理请求
     ngx_http_handler_pt        handler;
+/*
+next的设计使得处理阶段不必按照顺序依次进行，既可以向后跳跃数个阶段继续执行，也可以跳跃到之前曾经执行过的某个阶段重新执行。通常
+next表示下一个处理阶段中的第一个ngx_http_phase_handler_t处理方法
+*/
     ngx_uint_t                 next;
 };
 
@@ -185,7 +194,16 @@ NGX_HTTP_SERVER_REWRITE_PHASE处理阶段的第一个nx_http_phase_handler_t回调方法所处
 handlers:由ngx_http_phase_handler_t结构体组成的数组，每一个数组成员代表着一个http模块所添加的一个处理方法
 */
     ngx_http_phase_handler_t  *handlers;
+
+/*
+表示NGX_HTTP_SERVER_REWRITE_PHASE阶段第一个ngx_http_phase_handler_t处理方法在handlers数组中的序号，用于在执行http请求的任何阶段
+中快速跳转到NGX_HTTP_SERVER_REWRITE_PHASE阶段处理请求
+*/
     ngx_uint_t                 server_rewrite_index;
+/*
+表示NGX_HTTP_REWRITE_PHASE阶段第一个ngx_http_phase_handler_t处理方法在handlers数组中的序号，用于在执行http请求的任何阶段中快速跳转到
+NGX_HTTP_REWRITE_PHASE阶段处理请求
+*/
     ngx_uint_t                 location_rewrite_index;
 } ngx_http_phase_engine_t;
 
