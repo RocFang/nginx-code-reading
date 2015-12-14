@@ -546,6 +546,7 @@ ngx_http_init_phase_handlers(ngx_conf_t *cf, ngx_http_core_main_conf_t *cmcf)
             break;
 
         default:
+/*default对应的是NGX_HTTP_POST_READ_PHASE、NGX_HTTP_PREACCESS_PHASE、NGX_HTTP_LOG_PHASE阶段的初始化*/
             checker = ngx_http_core_generic_phase;
         }
 

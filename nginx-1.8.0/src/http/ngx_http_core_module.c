@@ -886,6 +886,20 @@ ngx_http_core_run_phases(ngx_http_request_t *r)
 
     ph = cmcf->phase_engine.handlers;
 
+/*
+1. NGX_HTTP_POST_READ_PHASE阶段的checker为ngx_http_core_generic_phase
+2. NGX_HTTP_SERVER_REWRITE_PHASE阶段的checker为ngx_http_core_rewrite_phase
+3. NGX_HTTP_FIND_CONFIG_PHASE阶段的checker为ngx_http_core_find_config_phase
+4. NGX_HTTP_REWRITE_PHASE阶段的checker为ngx_http_core_rewrite_phase(与NGX_HTTP_SERVER_REWRITE_PHASE同)
+5. NGX_HTTP_POST_REWRITE_PHASE阶段的checker为ngx_http_core_post_rewrite_phase
+6. NGX_HTTP_PREACCESS_PHASE阶段的chcker为ngx_http_core_generic_phase
+7. NGX_HTTP_ACCESS_PHASE阶段的checker为ngx_http_core_access_phase
+8. NGX_HTTP_POST_ACCESS_PHASE阶段的checker为ngx_http_core_post_access_phase
+9. NGX_HTTP_TRY_FILES_PHASE阶段的checker为ngx_http_core_try_files_phase
+10.NGX_HTTP_CONTENT_PHASE阶段的checker为ngx_http_core_content_phase
+11.NGX_HTTP_LOG_PHASE阶段的checker为ngx_http_core_generic_phase
+*/
+
     while (ph[r->phase_handler].checker) {
 
         rc = ph[r->phase_handler].checker(r, &ph[r->phase_handler]);
@@ -897,6 +911,7 @@ ngx_http_core_run_phases(ngx_http_request_t *r)
 }
 
 
+//NGX_HTTP_POST_READ_PHASE阶段的checker
 ngx_int_t
 ngx_http_core_generic_phase(ngx_http_request_t *r, ngx_http_phase_handler_t *ph)
 {
@@ -909,25 +924,33 @@ ngx_http_core_generic_phase(ngx_http_request_t *r, ngx_http_phase_handler_t *ph)
 
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                    "generic phase: %ui", r->phase_handler);
-
+//调用NGX_HTTP_POST_READ_PHASE阶段中各个http模块添加的handler处理方法
     rc = ph->handler(r);
 
     if (rc == NGX_OK) {
+//如果hander方法返回NGX_OK后，之后将进入下一个阶段处理，而不会理会当前阶段中是否还有其他的处理方法
         r->phase_handler = ph->next;
         return NGX_AGAIN;
     }
 
     if (rc == NGX_DECLINED) {
+//如果handler方法返回NGX_DECILINED,那么将进入下一个处理方法，这个处理方法既有可能属于当前阶段，也有可能属于下一个阶段
         r->phase_handler++;
         return NGX_AGAIN;
     }
 
     if (rc == NGX_AGAIN || rc == NGX_DONE) {
+/*
+如果handler方法返回NGX_AGIN或者NGX_DONE，那么当前请求仍然停留在这个一个处理阶段中
+*/
         return NGX_OK;
     }
 
     /* rc == NGX_ERROR || rc == NGX_HTTP_...  */
 
+/*
+如果handler方法返回NGX_ERROR或者类似NGX_HTTP_开头的返回码，则调用ngx_http_finalize_request结束请求
+*/
     ngx_http_finalize_request(r, rc);
 
     return NGX_OK;

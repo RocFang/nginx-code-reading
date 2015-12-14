@@ -2176,6 +2176,12 @@ ngx_http_find_virtual_server(ngx_connection_t *c,
 }
 
 
+/*
+通常来说，在接收完http头部后，是无法在一次nginx框架的调度中处理完一个请求的。在第一次接收完http头部后，http框架
+将调度ngx_http_process_request方法开始处理请求，这时如果ngx_http_core_run_phases执行过程中，某个checker方法返回了
+NGX_OK，则将会帮控制权交还给nginx框架。当这个请求上对应的事件再次触发时，http框架将不会再调度ngx_http_process_request
+方法处理请求，而是由ngx_http_request_handler方法开始处理请求
+*/
 static void
 ngx_http_request_handler(ngx_event_t *ev)
 {
