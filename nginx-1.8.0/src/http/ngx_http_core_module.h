@@ -238,6 +238,17 @@ typedef struct {
 
     ngx_uint_t                 try_files;       /* unsigned  try_files:1 */
 
+/*
+用于在http框架初始化时帮助各个http模块在任意阶段中添加http处理方法，它是一个有11个成员的ngx_http_phase_t数组，其中每一个给ngx_http_phase_t
+结构体对应一个http阶段，在http框架初始化完毕后，运行过程中的phases数组是无用的。
+
+注意，在ngx_http_core_main_conf_t中关于http阶段有两个成员:phase_engine和phases，其中phase_engine控制运行过程中一个http请求所要经过的http
+处理阶段，它将配合ngx_http_request_t结构体中的phase_handler成员使用(phase_handler指定了当前请求应当执行哪一个http阶段),而phases数组更像一个
+临时变量，它实际上仅仅会在nginx启动过程中用到，它唯一的使命是按照11个阶段的概念初始化phases_engine中的handlers数组。
+
+在http框架初始化的过程中，任何http模块都可以在ngx_http_module_t接口的postconfiguration方法中将自定义的方法添加到handlers动态数组中，这样这个
+方法将会最终添加到phase_engine中。
+*/
     ngx_http_phase_t           phases[NGX_HTTP_LOG_PHASE + 1];
 } ngx_http_core_main_conf_t;
 
