@@ -27,43 +27,87 @@ typedef struct {
 #endif
 
 
+/*
+在Nginx中，每一个事件都由ngx_event_t结构体表示。
+*/
 struct ngx_event_s {
+/*
+事件相关的对象。通常data都是指向ngx_connection_t连接对象。开启文件异步I/O时，它可能会指向ngx_event_aio_t结构体
+*/
     void            *data;
 
+/*
+标志位，为1时表示事件是可写的。通常情况下，它表示对应的tcp连接目前状态是可写的，也就是连接处于可以发送网络包的状态
+*/
     unsigned         write:1;
 
+/*
+标志位，为1时表示此事件可以建立新的连接。通常情况下，在ngx_cycle_t中的listening动态数组中，每一个监听对象ngx_listening_t对应
+的读事件中的accept标志位才会是1
+*/
     unsigned         accept:1;
 
     /* used to detect the stale events in kqueue, rtsig, and epoll */
+/*
+这个标志位用于区分当前事件是否是过期的，它仅仅是给事件驱动模块使用的，而事件消费模块可不用关心。为什么需要这个标志位呢?
+当开始处理一批事件时，处理前面的事件可能会关闭一些连接，而这些连接可能影响这批事件中还未处理的后面的事件。这时，可以通过
+instance标志位来避免处理后面的已经过期的事件。
+*/
     unsigned         instance:1;
 
     /*
      * the event was passed or would be passed to a kernel;
      * in aio mode - operation was posted.
      */
+ /*
+ 标志位，为1时表示当前事件是活跃的，为0时表示时间是不活跃的。这个状态对应着事件驱动模块处理方式的不同。例如，在添加事件、
+ 删除事件和处理事件时，active标志位的不同都对应着不同的处理方式，在使用事件时，一般不会直接改变active标志位
+ */
     unsigned         active:1;
 
+	
+/*
+标志位，为1时表示禁用事件，仅在kqueue或者rtsig事件驱动模块中有效，而对于epoll事件驱动模块则无意义
+*/
     unsigned         disabled:1;
 
     /* the ready event; in aio mode 0 means that no operation can be posted */
-    unsigned         ready:1;
 
+/*
+标志位，为1时表示当前事件已经准备就绪，也就是说，允许这个事件的消费模块处理这个事件。在http框架中，经常会检查事件的ready
+标志位以确定是否可以接收请求或者发送响应
+*/
+    unsigned         ready:1;
+	
+//对epoll事件驱动模块无意义
     unsigned         oneshot:1;
 
     /* aio operation is complete */
+//用于异步AIO事件的处理
     unsigned         complete:1;
 
+//标志位，为1时表示当前处理的字符流已经结束
     unsigned         eof:1;
+//标志位，为1时表示事件在处理过程中出现错误
     unsigned         error:1;
 
+//标志位，为1时表示这个事件已经超时，用以提示事件的消费模块做超时处理，它与timer_set都用于定时器中
     unsigned         timedout:1;
+//标志位，为1时表示这个事件存在于定时器中
     unsigned         timer_set:1;
 
+//标志位，delay为1时表示需要延迟处理这个事件，它仅用于限速功能
     unsigned         delayed:1;
 
+/*
+标志位，为1时表示延迟建立tcp连接，也就是说，经过tcp三次握手后，并不建立连接，而是要等到真正接收到数据包后才会建立tcp连接
+*/
     unsigned         deferred_accept:1;
 
     /* the pending eof reported by kqueue, epoll or in aio chain operation */
+/*
+标志位，为1时表示等待字符流结束
+*/
     unsigned         pending_eof:1;
 
     unsigned         posted:1;
@@ -96,9 +140,15 @@ struct ngx_event_s {
 #if (NGX_HAVE_KQUEUE) || (NGX_HAVE_IOCP)
     int              available;
 #else
+/*
+标志位，在epoll事件驱动机制下表示一次尽可能多的建立tcp连接，它与multi_accept配置项对应
+*/
     unsigned         available:1;
 #endif
 
+/*
+这个事件发生时的处理方法，每个事件消费模块都会重新实现它
+*/
     ngx_event_handler_pt  handler;
 
 
@@ -107,24 +157,32 @@ struct ngx_event_s {
 #if (NGX_HAVE_IOCP)
     ngx_event_ovlp_t ovlp;
 #else
+//linux aio机制中定义的结构体
     struct aiocb     aiocb;
 #endif
 
 #endif
 
+//epoll事件驱动方式不使用index
     ngx_uint_t       index;
 
+//可用于记录error_log日志的ngx_log_t对象
     ngx_log_t       *log;
 
+//定时器节点，用于定时器红黑树中
     ngx_rbtree_node_t   timer;
 
     /* the posted queue */
+//事件可构成一个双向链接
     ngx_queue_t      queue;
 
+//标志位，为1时表示当前事件已经关闭，epoll模块没有使用
     unsigned         closed:1;
 
     /* to test on worker exit */
+//目前无实际意义
     unsigned         channel:1;
+//目前无实际意义
     unsigned         resolver:1;
 
     unsigned         cancelable:1;
