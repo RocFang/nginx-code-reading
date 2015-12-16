@@ -117,6 +117,7 @@ typedef struct {
 
 
 typedef struct {
+//打开的mp4文件描述符
     ngx_file_t            file;
 
     u_char               *buffer;
@@ -845,6 +846,13 @@ ngx_http_mp4_process(ngx_http_mp4_file_t *mp4)
 }
 
 
+/*
+每个box由header和data组成，header中包括了整个box的长度size和类型type(即下面数据结构中的name),
+当size==0时，代表这是文件中最后一个box，当size==1时，意味着box长度需要用更多bit表示，所以在后面
+会有一个64bit的largesize来描述box的长度。
+
+所以这里定义了两种box header，即ngx_mp4_atom_header_t和ngx_mp4_atom_header64_t
+*/
 typedef struct {
     u_char    size[4];
     u_char    name[4];
@@ -912,7 +920,7 @@ ngx_http_mp4_read_atom(ngx_http_mp4_file_t *mp4,
         if (ngx_http_mp4_read(mp4, sizeof(ngx_mp4_atom_header_t)) != NGX_OK) {
             return NGX_ERROR;
         }
-
+//get box type
         atom_header = mp4->buffer_pos;
         atom_name = atom_header + sizeof(uint32_t);
 
