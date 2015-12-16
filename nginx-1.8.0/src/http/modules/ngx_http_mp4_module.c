@@ -460,10 +460,14 @@ ngx_http_mp4_handler(ngx_http_request_t *r)
 
     ngx_memzero(&of, sizeof(ngx_open_file_info_t));
 
+//clcf->read_ahead由http://nginx.org/en/docs/http/ngx_http_core_module.html#read_ahead 配置，在linux平台被忽略
     of.read_ahead = clcf->read_ahead;
     of.directio = NGX_MAX_OFF_T_VALUE;
+//http://nginx.org/en/docs/http/ngx_http_core_module.html#open_file_cache_valid
     of.valid = clcf->open_file_cache_valid;
+//http://nginx.org/en/docs/http/ngx_http_core_module.html#open_file_cache_min_uses
     of.min_uses = clcf->open_file_cache_min_uses;
+//http://nginx.org/en/docs/http/ngx_http_core_module.html#open_file_cache_errors
     of.errors = clcf->open_file_cache_errors;
     of.events = clcf->open_file_cache_events;
 
@@ -523,6 +527,7 @@ ngx_http_mp4_handler(ngx_http_request_t *r)
     }
 
     r->root_tested = !r->error_page;
+//允许range请求
     r->allow_ranges = 1;
 
     start = -1;
@@ -532,7 +537,7 @@ ngx_http_mp4_handler(ngx_http_request_t *r)
     b = NULL;
 
     if (r->args.len) {
-
+//解析start参数
         if (ngx_http_arg(r, (u_char *) "start", 5, &value) == NGX_OK) {
 
             /*
@@ -548,7 +553,7 @@ ngx_http_mp4_handler(ngx_http_request_t *r)
                 start = -1;
             }
         }
-
+//解析end参数
         if (ngx_http_arg(r, (u_char *) "end", 3, &value) == NGX_OK) {
 
             ngx_set_errno(0);
