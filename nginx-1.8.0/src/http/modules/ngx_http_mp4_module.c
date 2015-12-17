@@ -367,7 +367,11 @@ ngx_module_t  ngx_http_mp4_module = {
     NGX_MODULE_V1_PADDING
 };
 
-
+/*
+ftyp: File type and compatibility
+moov: Container for structural metadata
+mdat: Media data container
+*/
 static ngx_http_mp4_atom_handler_t  ngx_http_mp4_atoms[] = {
     { "ftyp", ngx_http_mp4_read_ftyp_atom },
     { "moov", ngx_http_mp4_read_moov_atom },
@@ -375,6 +379,11 @@ static ngx_http_mp4_atom_handler_t  ngx_http_mp4_atoms[] = {
     { NULL, NULL }
 };
 
+/*
+mvhd: 被moov盒子包含.playback information. mvhd box should be placed first in its container
+trak: 被moov盒子包含.Each Track(trak) box corresponds to a individual media track witin the mp4 file and contains boxes that further define
+      the properities of the media track.
+*/
 static ngx_http_mp4_atom_handler_t  ngx_http_mp4_moov_atoms[] = {
     { "mvhd", ngx_http_mp4_read_mvhd_atom },
     { "trak", ngx_http_mp4_read_trak_atom },
@@ -937,6 +946,16 @@ ngx_http_mp4_read_atom(ngx_http_mp4_file_t *mp4,
             return NGX_ERROR;
         }
 
+/*
+处理对应的box
+static ngx_http_mp4_atom_handler_t  ngx_http_mp4_atoms[] = {
+    { "ftyp", ngx_http_mp4_read_ftyp_atom },
+    { "moov", ngx_http_mp4_read_moov_atom },
+    { "mdat", ngx_http_mp4_read_mdat_atom },
+    { NULL, NULL }
+};
+
+*/
         for (n = 0; atom[n].name; n++) {
 
             if (ngx_strncmp(atom_name, atom[n].name, 4) == 0) {
