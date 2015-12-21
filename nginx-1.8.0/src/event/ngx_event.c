@@ -42,6 +42,7 @@ sig_atomic_t          ngx_event_timer_alarm;
 static ngx_uint_t     ngx_event_max_module;
 
 ngx_uint_t            ngx_event_flags;
+//全局变量 ngx_event_actions，在linux中会被赋值为ngx_epoll_module_ctx.actions;赋值操作发生在ngx_epoll_init中。
 ngx_event_actions_t   ngx_event_actions;
 
 
@@ -245,6 +246,10 @@ ngx_process_events_and_timers(ngx_cycle_t *cycle)
 
     delta = ngx_current_msec;
 
+/*
+在linux平台中(使用epoll),ngx_process_events为:
+ngx_epoll_module_ctx.actions.process_events,即:ngx_epoll_process_events,在该方法中调用epoll_wait。
+*/
     (void) ngx_process_events(cycle, timer, flags);
 
     delta = ngx_current_msec - delta;

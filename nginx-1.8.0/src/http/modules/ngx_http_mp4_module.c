@@ -947,7 +947,7 @@ ngx_http_mp4_read_atom(ngx_http_mp4_file_t *mp4,
         }
 
 /*
-处理对应的box
+处理对应的box,例如:
 static ngx_http_mp4_atom_handler_t  ngx_http_mp4_atoms[] = {
     { "ftyp", ngx_http_mp4_read_ftyp_atom },
     { "moov", ngx_http_mp4_read_moov_atom },
@@ -1239,51 +1239,76 @@ ngx_http_mp4_update_mdat_atom(ngx_http_mp4_file_t *mp4, off_t start_offset,
 }
 
 
+/*
+mvhd盒子:
+如果version为0，则使用ngx_mp4_mvhd_atom_t，如果version为1，则使用ngx_mp4_mvhd64_atom_t
+*/
 typedef struct {
+//size 和 name 为header
     u_char    size[4];
     u_char    name[4];
+//version 为0或1
     u_char    version[1];
+//flag为24位，保留为0
     u_char    flags[3];
+//如果version为0，则CreationTime和ModificationTime均为32位，否则为64位
     u_char    creation_time[4];
     u_char    modification_time[4];
+//TimeScale:32位
     u_char    timescale[4];
+//如果version为0，则Duration为32位，否则为64位
     u_char    duration[4];
     u_char    rate[4];
     u_char    volume[2];
+//80个位的保留字
     u_char    reserved[10];
+//Matrix:288位
     u_char    matrix[36];
+
+//Reserved: 32*6=192位，所以下面一共有6*4*8位，就是利用了这192位的保留字
     u_char    preview_time[4];
     u_char    preview_duration[4];
     u_char    poster_time[4];
     u_char    selection_time[4];
     u_char    selection_duration[4];
     u_char    current_time[4];
+//NextTrackID:32字节
     u_char    next_track_id[4];
 } ngx_mp4_mvhd_atom_t;
 
 typedef struct {
+//size和name为header
     u_char    size[4];
     u_char    name[4];
+//version为0或1
     u_char    version[1];
+//flag为24位，保留为0
     u_char    flags[3];
+//如果version为0，则CreationTime和ModificationTime均为32位，否则为64位
     u_char    creation_time[8];
     u_char    modification_time[8];
+//TimeScale:32位
     u_char    timescale[4];
+//如果version为0，则Duration为32位，否则为64位
     u_char    duration[8];
     u_char    rate[4];
     u_char    volume[2];
+//80位的保留字
     u_char    reserved[10];
+//Matrix:288位
     u_char    matrix[36];
+//Reserved: 32*6=192位，所以下面一共有6*4*8位，就是利用了这192位的保留字
     u_char    preview_time[4];
     u_char    preview_duration[4];
     u_char    poster_time[4];
     u_char    selection_time[4];
     u_char    selection_duration[4];
     u_char    current_time[4];
+//NextTrackID:32位
     u_char    next_track_id[4];
 } ngx_mp4_mvhd64_atom_t;
 
-
+//mvhd box的处理函数
 static ngx_int_t
 ngx_http_mp4_read_mvhd_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 {
