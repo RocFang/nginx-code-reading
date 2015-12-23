@@ -124,14 +124,19 @@ typedef struct {
     u_char               *buffer_start;
     u_char               *buffer_pos;
     u_char               *buffer_end;
+	//配置的buffer_size
     size_t                buffer_size;
 
     off_t                 offset;
+	// end为mp4文件大小，而非请求参数中单位为秒的end
     off_t                 end;
     off_t                 content_length;
+	// start,请求参数，单位为秒
     ngx_uint_t            start;
+	// length为请求参数中end与start只差，单位为秒
     ngx_uint_t            length;
     uint32_t              timescale;
+	// 指向当前请求
     ngx_http_request_t   *request;
     ngx_array_t           trak;
     ngx_http_mp4_trak_t   traks[2];
@@ -367,10 +372,12 @@ ngx_module_t  ngx_http_mp4_module = {
     NGX_MODULE_V1_PADDING
 };
 
+
 /*
-ftyp: File type and compatibility
-moov: Container for structural metadata
-mdat: Media data container
+最外层的三个盒子的处理
+ftyp: File type and compatibility。在文件的开始位置，描述的文件的版本、兼容协议等
+moov: Container for structural metadata。这个box中不包含具体媒体数据，但包含本文件中所有媒体数据的宏观描述信息，moov box下有mvhd和trak box
+mdat: Media data container。实际媒体数据。我们最终解码播放的数据都在这里面
 */
 static ngx_http_mp4_atom_handler_t  ngx_http_mp4_atoms[] = {
     { "ftyp", ngx_http_mp4_read_ftyp_atom },
@@ -380,9 +387,10 @@ static ngx_http_mp4_atom_handler_t  ngx_http_mp4_atoms[] = {
 };
 
 /*
-mvhd: 被moov盒子包含.playback information. mvhd box should be placed first in its container
+moov的两种子盒子，mvhd和trak
+mvhd: 被moov盒子包含.playback information. mvhd box should be placed first in its container。mvhd中记录了创建时间、修改时间、时间度量标尺、可播放时长等信息
 trak: 被moov盒子包含.Each Track(trak) box corresponds to a individual media track witin the mp4 file and contains boxes that further define
-      the properities of the media track.
+      the properities of the media track.trak中的一系列子box描述了每个媒体轨道的具体信息。
 */
 static ngx_http_mp4_atom_handler_t  ngx_http_mp4_moov_atoms[] = {
     { "mvhd", ngx_http_mp4_read_mvhd_atom },
@@ -391,12 +399,23 @@ static ngx_http_mp4_atom_handler_t  ngx_http_mp4_moov_atoms[] = {
     { NULL, NULL }
 };
 
+/*
+trak盒子的两种子盒子
+tkhd:track header, overall information about the track
+mdia:container for the media information in a track
+*/
 static ngx_http_mp4_atom_handler_t  ngx_http_mp4_trak_atoms[] = {
     { "tkhd", ngx_http_mp4_read_tkhd_atom },
     { "mdia", ngx_http_mp4_read_mdia_atom },
     { NULL, NULL }
 };
 
+/*
+mdia盒子的三种子盒子
+mdhd:media header, overall information about the media
+hdlr:handler, declares the media (handler) type
+minf:media information container
+*/
 static ngx_http_mp4_atom_handler_t  ngx_http_mp4_mdia_atoms[] = {
     { "mdhd", ngx_http_mp4_read_mdhd_atom },
     { "hdlr", ngx_http_mp4_read_hdlr_atom },
@@ -404,6 +423,13 @@ static ngx_http_mp4_atom_handler_t  ngx_http_mp4_mdia_atoms[] = {
     { NULL, NULL }
 };
 
+/*
+minf盒子的四种子盒子
+vmhd:video media header, overall information (video track only)
+smhd:sound media header, overall information (sound track only)
+dinf:data information box, container
+stbl:sample table box, container for the time/space map
+*/
 static ngx_http_mp4_atom_handler_t  ngx_http_mp4_minf_atoms[] = {
     { "vmhd", ngx_http_mp4_read_vmhd_atom },
     { "smhd", ngx_http_mp4_read_smhd_atom },
@@ -412,6 +438,17 @@ static ngx_http_mp4_atom_handler_t  ngx_http_mp4_minf_atoms[] = {
     { NULL, NULL }
 };
 
+/*
+stbl盒子的几种子盒子,参考http://blog.csdn.net/yu_yuan_1314/article/details/9078287
+stsd:sample descriptions (codec types, initialization etc.)
+stts:(decoding) time-to-sample
+stss:sync sample table (random access points)
+ctts:(composition) time to sample时间合成偏移表
+stsc:sample-to-chunk, partial data-offset information,Chunk中的Sample信息表
+stsz:sample sizes (framing)指定了每个sample的size
+stco:chunk offset, partial data-offset information.Chunk的偏移量表stco/co64,指定了每个chunk在文件中的位置
+co64:64-bit chunk offset.
+*/
 static ngx_http_mp4_atom_handler_t  ngx_http_mp4_stbl_atoms[] = {
     { "stsd", ngx_http_mp4_read_stsd_atom },
     { "stts", ngx_http_mp4_read_stts_atom },
@@ -719,6 +756,7 @@ ngx_http_mp4_process(ngx_http_mp4_file_t *mp4)
 
     mp4->buffer_size = conf->buffer_size;
 
+// 传入的mp4->end 为文件的大小，而非请求参数中单位为秒的end
     rc = ngx_http_mp4_read_atom(mp4, ngx_http_mp4_atoms, mp4->end);
     if (rc != NGX_OK) {
         return rc;
