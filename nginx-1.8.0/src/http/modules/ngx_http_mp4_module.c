@@ -547,7 +547,7 @@ ngx_http_mp4_handler(ngx_http_request_t *r)
     b = NULL;
 
     if (r->args.len) {
-//解析start参数
+//解析start参数,单位为秒
         if (ngx_http_arg(r, (u_char *) "start", 5, &value) == NGX_OK) {
 
             /*
@@ -563,7 +563,7 @@ ngx_http_mp4_handler(ngx_http_request_t *r)
                 start = -1;
             }
         }
-//解析end参数
+//解析end参数，单位为秒
         if (ngx_http_arg(r, (u_char *) "end", 3, &value) == NGX_OK) {
 
             ngx_set_errno(0);
@@ -579,6 +579,7 @@ ngx_http_mp4_handler(ngx_http_request_t *r)
                 }
 
                 if (end > start) {
+					//length单位为秒
                     length = end - start;
                 }
             }
@@ -1352,6 +1353,12 @@ ngx_http_mp4_read_mvhd_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
         duration = ngx_mp4_get_64value(mvhd64_atom->duration);
     }
 
+/*
+TimeScale: The time coordinate system for the entire F4V file, in number of time units per second. For example, 100 indicates the time units are 1/100
+second each.
+
+Duration: The total length of the F4V file presentation, in TimeScale units. This is also the duration of the longest track in the file.
+*/
     mp4->timescale = timescale;
 
     ngx_log_debug3(NGX_LOG_DEBUG_HTTP, mp4->file.log, 0,
@@ -1369,6 +1376,7 @@ ngx_http_mp4_read_mvhd_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 
     duration -= start_time;
 
+//mp4->length的单位为秒，是参数中end与start的差值
     if (mp4->length) {
         length_time = (uint64_t) mp4->length * timescale / 1000;
 
@@ -1843,7 +1851,14 @@ ngx_http_mp4_update_minf_atom(ngx_http_mp4_file_t *mp4,
     ngx_mp4_set_32value(atom->pos, trak->size);
 }
 
-
+/*
+Box type: 'vmhd'
+Container: Media Information box ('minf')
+Mandatory: Yes for a video track, otherwise no.
+Quantity: One for a video track, otherwise zero.
+The Video Media Header (vmhd) box contains general information for video media, independent of the coding
+used. The vmhd box should be placed first in its container.
+*/
 static ngx_int_t
 ngx_http_mp4_read_vmhd_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 {
@@ -1875,6 +1890,14 @@ ngx_http_mp4_read_vmhd_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 }
 
 
+/*
+Box type: 'smhd'
+Container: Media Information box ('minf')
+Mandatory: Yes for an audio track, otherwise no.
+Quantity: One for an audio track, otherwise zero.
+The Sound Media Header box contains general information for audio media, independent of the coding used. The
+smhd box should be placed first in its container.
+*/
 static ngx_int_t
 ngx_http_mp4_read_smhd_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 {
@@ -1906,6 +1929,14 @@ ngx_http_mp4_read_smhd_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 }
 
 
+/*
+Box type: 'dinf'
+Container: Media Information box ('minf')
+Mandatory: Yes
+Quantity: One
+The Data Information (dinf) box contains a Data Reference (dref) box, which declares the location of the media data
+in a track. The dinf box should precede the Sample Table (stbl) box.
+*/
 static ngx_int_t
 ngx_http_mp4_read_dinf_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 {
@@ -1937,6 +1968,18 @@ ngx_http_mp4_read_dinf_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 }
 
 
+/*
+Box type: 'stbl'
+Container: Media Information box ('minf')
+Mandatory: Yes
+Quantity: One
+The Sample Table (stbl) box contains boxes that define properties about the samples that make up a track.
+The boxes within the stbl box should be in the following order: Sample Description (stsd), Decoding Time to
+Sample (stts), Sample to Chunk (stsc), Sample Size (stsz), Chunk Offset (stco or co64).
+The Sample Description (stsd) box and its contained boxes are specified in section 2.8 Sample Description Box
+Structure.
+
+*/
 static ngx_int_t
 ngx_http_mp4_read_stbl_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 {
@@ -1985,7 +2028,18 @@ typedef struct {
     u_char    media_name[4];
 } ngx_mp4_stsd_atom_t;
 
+/*
+Box type: 'stsd'
+Container: Sample Table box ('stbl')
+Mandatory: Yes
+Quantity: One
+The Sample Description (stsd) box defines the sample description for a sample table. The stsd box can contain
+multiple descriptions for a track, one for each media type contained in the track. The sample description table gives
+detailed information about the coding type used, and any initialization information needed for that coding.
+Table 2 shows the hierarchy within the Sample Description box.
+For more information, see section 8.5.2 of ISO/IEC 14496-12.
 
+*/
 static ngx_int_t
 ngx_http_mp4_read_stsd_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 {
@@ -2046,7 +2100,14 @@ typedef struct {
     u_char    duration[4];
 } ngx_mp4_stts_entry_t;
 
+/*
+Box type: 'stts'
+Container: Sample Table box ('stbl')
+Mandatory: Yes
+Quantity: One
+The Decoding Time to Sample (stts) box defines the time-to-sample mapping for a sample table.
 
+*/
 static ngx_int_t
 ngx_http_mp4_read_stts_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 {
@@ -2263,6 +2324,17 @@ typedef struct {
 } ngx_http_mp4_stss_atom_t;
 
 
+/*
+Box type: 'stss'
+Container: Sample Table box ('stbl')
+Mandatory: No
+Quantity: One
+The Sync Sample (stss) box specifies which samples within a sample table are sync samples. Sync samples are
+samples that are safe to seek to. If the track is a video track, sync samples are the keyframes or intraframes that do
+not rely on any data from any other frames.
+If the Sample Table (stbl) box does not contain an stss box, all samples in the track shall be treated as sync samples.
+
+*/
 static ngx_int_t
 ngx_http_mp4_read_stss_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 {
@@ -2460,7 +2532,14 @@ typedef struct {
     u_char    offset[4];
 } ngx_mp4_ctts_entry_t;
 
+/*
+Box type: 'ctts'
+Container: Sample Table box ('stbl')
+Mandatory: No
+Quantity: One
+The Composition Time to Sample (ctts) box defines the composition time to sample mapping for a sample table.
 
+*/
 static ngx_int_t
 ngx_http_mp4_read_ctts_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 {
@@ -2652,7 +2731,15 @@ typedef struct {
     u_char    entries[4];
 } ngx_mp4_stsc_atom_t;
 
+/*
+Box type: 'stsc'
+Container: Sample Table box ('stbl')
+Mandatory: Yes
+Quantity: One
+The Sample To Chunk (stsc) box defines the sample-to-chunk mapping in the sample table of a media track.
+stsc box
 
+*/
 static ngx_int_t
 ngx_http_mp4_read_stsc_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 {
@@ -2993,7 +3080,14 @@ typedef struct {
     u_char    entries[4];
 } ngx_mp4_stsz_atom_t;
 
+/*
+Box type: 'stsz'
+Container: Sample Table box ('stbl')
+Mandatory: No
+Quantity: One
+The Sample Size (stsz) box specifies the size of each sample in a sample table.
 
+*/
 static ngx_int_t
 ngx_http_mp4_read_stsz_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 {
@@ -3155,6 +3249,15 @@ typedef struct {
 } ngx_mp4_stco_atom_t;
 
 
+/*
+Box type: 'stco' or 'co64'
+Container: Sample Table box ('stbl')
+Mandatory: Yes
+Quantity: One
+Each Sample Table box shall contain one Chunk Offset box of either the stco or the co64 type. The stco and co64
+boxes define chunk offsets for each chunk in a sample table.
+
+*/
 static ngx_int_t
 ngx_http_mp4_read_stco_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 {
@@ -3339,6 +3442,15 @@ typedef struct {
 } ngx_mp4_co64_atom_t;
 
 
+/*
+Box type: 'stco' or 'co64'
+Container: Sample Table box ('stbl')
+Mandatory: Yes
+Quantity: One
+Each Sample Table box shall contain one Chunk Offset box of either the stco or the co64 type. The stco and co64
+boxes define chunk offsets for each chunk in a sample table.
+
+*/
 static ngx_int_t
 ngx_http_mp4_read_co64_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 {
