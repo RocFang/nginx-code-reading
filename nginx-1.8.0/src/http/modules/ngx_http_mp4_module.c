@@ -821,15 +821,29 @@ ngx_http_mp4_process(ngx_http_mp4_file_t *mp4)
         }
 
         ngx_http_mp4_update_ctts_atom(mp4, &trak[i]);
+/*
+µ±Ìí¼Ósamples µ½media Ê±£¬ÓÃchunks ×éÖ¯ÕâÐ©sample£¬ÕâÑù¿ÉÒÔ·½±ãÓÅ»¯Êý¾Ý»ñÈ¡¡£
+Ò»¸ötrunk °üº¬Ò»¸ö»ò¶à¸ösample£¬chunkµÄ³¤¶È¿ÉÒÔ²»Í¬£¬chunk ÄÚµÄsample µÄ³¤¶ÈÒ²¿ÉÒÔ²»Í¬¡
+sample-to-chunk atom ´æ´¢sample Óëchunk µÄÓ³Éä¹ØÏµ¡£Sample-to-chunk atoms µÄÀàÐÍÊÇ'stsc'¡£
+ËüÒ²ÓÐÒ»¸ö±íÀ´Ó³Éäsample ºÍtrunk Ö®¼äµÄ¹ØÏµ£¬²é¿´ÕâÕÅ±í£¬¾Í¿ÉÒÔÕÒµ½°üº¬Ö¸¶¨sample µÄtrunk£¬´Ó¶øÕÒµ½Õâ¸ösample¡£
 
+*/
         if (ngx_http_mp4_update_stsc_atom(mp4, &trak[i]) != NGX_OK) {
             return NGX_ERROR;
         }
 
+/*
+Sample Size table¡£Õâ¸ö±í°üº¬ÁËÃ¿¸ösample µÄ³¤¶È£¬ÕÒµ½sample µÄÐòºÅ£¬¾Í¿ÉÒÔÕÒµ½¶ÔÓ¦sample µÄ³¤¶ÈÁË¡£
+*/
         if (ngx_http_mp4_update_stsz_atom(mp4, &trak[i]) != NGX_OK) {
             return NGX_ERROR;
         }
 
+/*
+Chunk offset atoms ¶¨ÒåÁËÃ¿¸ötrunk ÔÚÃ½ÌåÁ÷ÖÐµÄÎ»ÖÃ£¬ËüµÄÀàÐÍÊÇ'stco'¡£Î»ÖÃÓÐÁ½ÖÖ¿ÉÄÜ£¬32 Î»µÄºÍ64 Î»µÄ£¬ºóÕß¶Ô·Ç³£´óµÄµçÓ°ºÜÓÐÓÃ¡£
+ÔÚÒ»¸ö±íÖÐÖ»»áÓÐÒ»ÖÖ¿ÉÄÜ£¬Õâ¸öÎ»ÖÃÊÇÔÚÕû¸öÎÄ¼þÖÐµÄ£¬¶ø²»ÊÇÔÚÈÎºÎatom ÖÐµÄ£¬ÕâÑù×ö¾Í¿ÉÒÔÖ±½ÓÔÚÎÄ¼þÖÐÕÒµ½Ã½ÌåÊý¾Ý£¬¶ø²»ÓÃ½âÊÍatom¡£
+ÐèÒª×¢ÒâµÄÊÇÒ»µ©Ç°ÃæµÄatom ÓÐÁËÈÎºÎ¸Ä±ä£¬ÕâÕÅ±í¶¼ÒªÖØÐÂ½¨Á¢£¬ÒòÎªÎ»ÖÃÐÅÏ¢ÒÑ¾­¸Ä±äÁË¡£
+*/
         if (trak[i].out[NGX_HTTP_MP4_CO64_DATA].buf) {
             if (ngx_http_mp4_update_co64_atom(mp4, &trak[i]) != NGX_OK) {
                 return NGX_ERROR;
@@ -2327,12 +2341,14 @@ ngx_http_mp4_crop_stts_data(ngx_http_mp4_file_t *mp4,
     ngx_mp4_stts_entry_t  *entry, *end;
 
     if (start) {
+		// mp4->startµ¥Î»ÎªºÁÃë
         start_sec = mp4->start;
 
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, mp4->file.log, 0,
                        "mp4 stts crop start_time:%ui", start_sec);
 
     } else if (mp4->length) {
+        // mp4->lengthµ¥Î»ÎªºÁÃë
         start_sec = mp4->length;
 
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, mp4->file.log, 0,
@@ -2344,21 +2360,26 @@ ngx_http_mp4_crop_stts_data(ngx_http_mp4_file_t *mp4,
 
     data = trak->out[NGX_HTTP_MP4_STTS_DATA].buf;
 
+    // start_secµ¥Î»ÎªºÁÃë£¬½«Æä×ª»»Îªstart_time,µ¥Î»Îªtime unit
     start_time = (uint64_t) start_sec * trak->timescale / 1000;
 
+    // entries Îª Count×Ö¶Î
     entries = trak->time_to_sample_entries;
     start_sample = 0;
+	// entryÎªSTTSRECORD entriesÊý×éµÄÆðÊ¼µØÖ·
     entry = (ngx_mp4_stts_entry_t *) data->pos;
     end = (ngx_mp4_stts_entry_t *) data->last;
 
     while (entry < end) {
+		//»ñÈ¡SampleCount,32bit:The number of consecutive samples that this STTSRECORD applies to
         count = ngx_mp4_get_32value(entry->count);
+		//»ñÈ¡SampleDelta,32bit:Sample duration in TimeScale units defined in the mdhd box
         duration = ngx_mp4_get_32value(entry->duration);
 
         ngx_log_debug3(NGX_LOG_DEBUG_HTTP, mp4->file.log, 0,
                        "time:%uL, count:%uD, duration:%uD",
                        start_time, count, duration);
-
+        // ±È½Ïµ¥Î»¾ùÎªtime unit
         if (start_time < (uint64_t) count * duration) {
             start_sample += (ngx_uint_t) (start_time / duration);
             rest = (uint32_t) (start_time / duration);
@@ -2433,6 +2454,10 @@ samples that are safe to seek to. If the track is a video track, sync samples ar
 not rely on any data from any other frames.
 If the Sample Table (stbl) box does not contain an stss box, all samples in the track shall be treated as sync samples.
 
+sync sample atomÈ·¶¨mediaÖÐµÄ¹Ø¼üÖ¡¡£¶ÔÓÚÑ¹ËõµÄÃ½Ìå£¬¹Ø¼üÖ¡ÊÇÒ»ÏµÁÐÑ¹ËõÐòÁÐµÄ¿ªÊ¼Ö¡£¬ËüµÄ½âÑ¹ËõÊÇ²»ÒÀÀµÓÚÒÔÇ°µÄÖ¡¡£ºóÐøÖ¡µÄ½âÑ¹ËõÒÀÀµÓÚÕâ¸ö¹Ø¼üÖ¡¡£
+sync sample atom¿ÉÒÔ·Ç³£½ô´ÕµÄ±ê¼ÇÃ½ÌåÄÚµÄËæ»ú´æÈ¡µã¡£Ëü°üº¬Ò»¸ösampleÐòºÅ±í£¬±íÄÚµÄÃ¿Ò»ÏîÑÏ¸ñ°´ÕÕsampleµÄÐòºÅÅÅÁÐ£¬ËµÃ÷ÁËÃ½ÌåÖÐµÄÄÄÒ»¸ösampleÊÇ¹Ø¼üÖ¡¡£Èç¹û´Ë±í²»´æÔÚ£¬ËµÃ÷Ã¿Ò»¸ösample¶¼ÊÇÒ»¸ö¹Ø¼üÖ¡£¬ÊÇÒ»¸öËæ»ú´æÈ¡µã¡£
+
+
 */
 static ngx_int_t
 ngx_http_mp4_read_stss_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
@@ -2495,7 +2520,16 @@ ngx_http_mp4_read_stss_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
     return NGX_OK;
 }
 
+/*
+The Sync Sample (stss) box specifies which samples within a sample table are sync samples. Sync samples are
+samples that are safe to seek to. If the track is a video track, sync samples are the keyframes or intraframes that do
+not rely on any data from any other frames.
+If the Sample Table (stbl) box does not contain an stss box, all samples in the track shall be treated as sync samples.
 
+sync sample atomÈ·¶¨mediaÖÐµÄ¹Ø¼üÖ¡¡£¶ÔÓÚÑ¹ËõµÄÃ½Ìå£¬¹Ø¼üÖ¡ÊÇÒ»ÏµÁÐÑ¹ËõÐòÁÐµÄ¿ªÊ¼Ö¡£¬ËüµÄ½âÑ¹ËõÊÇ²»ÒÀÀµÓÚÒÔÇ°µÄÖ¡¡£ºóÐøÖ¡µÄ½âÑ¹ËõÒÀÀµÓÚÕâ¸ö¹Ø¼üÖ¡¡£
+sync sample atom¿ÉÒÔ·Ç³£½ô´ÕµÄ±ê¼ÇÃ½ÌåÄÚµÄËæ»ú´æÈ¡µã¡£Ëü°üº¬Ò»¸ösampleÐòºÅ±í£¬±íÄÚµÄÃ¿Ò»ÏîÑÏ¸ñ°´ÕÕsampleµÄÐòºÅÅÅÁÐ£¬ËµÃ÷ÁËÃ½ÌåÖÐµÄÄÄÒ»¸ösampleÊÇ¹Ø¼üÖ¡¡£Èç¹û´Ë±í²»´æÔÚ£¬ËµÃ÷Ã¿Ò»¸ösample¶¼ÊÇÒ»¸ö¹Ø¼üÖ¡£¬ÊÇÒ»¸öËæ»ú´æÈ¡µã¡£
+
+*/
 static ngx_int_t
 ngx_http_mp4_update_stss_atom(ngx_http_mp4_file_t *mp4,
     ngx_http_mp4_trak_t *trak)
@@ -3261,7 +3295,10 @@ ngx_http_mp4_read_stsz_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
     return NGX_OK;
 }
 
+/*
+Sample Size table¡£Õâ¸ö±í°üº¬ÁËÃ¿¸ösample µÄ³¤¶È£¬ÕÒµ½sample µÄÐòºÅ£¬¾Í¿ÉÒÔÕÒµ½¶ÔÓ¦sample µÄ³¤¶ÈÁË¡£
 
+*/
 static ngx_int_t
 ngx_http_mp4_update_stsz_atom(ngx_http_mp4_file_t *mp4,
     ngx_http_mp4_trak_t *trak)
