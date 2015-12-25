@@ -134,7 +134,7 @@ typedef struct {
     off_t                 content_length;
 	// start,请求参数，单位为毫秒,例如，请求参数为start=2,则这里的start为2000
     ngx_uint_t            start;
-	// length为请求参数中end与start只差，单位为毫秒
+	// length为请求参数中end与start之差，单位为毫秒
     ngx_uint_t            length;
     uint32_t              timescale;
 	// 指向当前请求
@@ -2181,15 +2181,21 @@ ngx_http_mp4_read_stsd_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 
 
 typedef struct {
+	// size和name构成了header
     u_char    size[4];
     u_char    name[4];
+	//version 为8位
     u_char    version[1];
+	//24位Flags,保留位，为0
     u_char    flags[3];
+	//Count,32位:The number of STTSRECORD entries
     u_char    entries[4];
 } ngx_mp4_stts_atom_t;
 
 typedef struct {
+	//SampleCount,为32位:The number of consecutive samples that this STTSRECORD applies to
     u_char    count[4];
+	//SampleDelta,为32位:Sample duration in TimeScale units defined in the mdhd box
     u_char    duration[4];
 } ngx_mp4_stts_entry_t;
 
@@ -2223,7 +2229,7 @@ ngx_http_mp4_read_stts_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
                       "\"%s\" mp4 stts atom too small", mp4->file.name.data);
         return NGX_ERROR;
     }
-
+    // get Count:The number of STTSRECORD entries
     entries = ngx_mp4_get_32value(stts_atom->entries);
 
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, mp4->file.log, 0,
