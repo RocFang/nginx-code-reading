@@ -127,17 +127,19 @@ typedef struct {
 	//配置的buffer_size
     size_t                buffer_size;
 
+    //记录每次解析前当前位置在整个mp4文件中的偏移
     off_t                 offset;
 	// end为mp4文件大小，而非请求参数中单位为秒的end
     off_t                 end;
     off_t                 content_length;
-	// start,请求参数，单位为秒
+	// start,请求参数，单位为毫秒,例如，请求参数为start=2,则这里的start为2000
     ngx_uint_t            start;
-	// length为请求参数中end与start只差，单位为秒
+	// length为请求参数中end与start只差，单位为毫秒
     ngx_uint_t            length;
     uint32_t              timescale;
 	// 指向当前请求
     ngx_http_request_t   *request;
+	// track容器数组
     ngx_array_t           trak;
     ngx_http_mp4_trak_t   traks[2];
 
@@ -584,7 +586,7 @@ ngx_http_mp4_handler(ngx_http_request_t *r)
     b = NULL;
 
     if (r->args.len) {
-//解析start参数,单位为秒
+//解析start参数,单位为秒，但解析后转换为毫秒
         if (ngx_http_arg(r, (u_char *) "start", 5, &value) == NGX_OK) {
 
             /*
@@ -600,7 +602,7 @@ ngx_http_mp4_handler(ngx_http_request_t *r)
                 start = -1;
             }
         }
-//解析end参数，单位为秒
+//解析end参数，单位为秒,但解析后转化为毫秒
         if (ngx_http_arg(r, (u_char *) "end", 3, &value) == NGX_OK) {
 
             ngx_set_errno(0);
@@ -616,7 +618,7 @@ ngx_http_mp4_handler(ngx_http_request_t *r)
                 }
 
                 if (end > start) {
-					//length单位为秒
+					//length单位为毫秒
                     length = end - start;
                 }
             }
@@ -739,6 +741,17 @@ ngx_http_mp4_handler(ngx_http_request_t *r)
 }
 
 
+/*
+在此函数调用之前，mp4结构仅有如下初始化操作:
+mp4->file.fd = of.fd;
+mp4->file.name = path;
+mp4->file.log = r->connection->log;
+mp4->end = of.size;
+mp4->start = (ngx_uint_t) start;
+mp4->length = length;
+mp4->request = r;
+
+*/
 static ngx_int_t
 ngx_http_mp4_process(ngx_http_mp4_file_t *mp4)
 {
@@ -756,7 +769,8 @@ ngx_http_mp4_process(ngx_http_mp4_file_t *mp4)
 
     mp4->buffer_size = conf->buffer_size;
 
-// 传入的mp4->end 为文件的大小，而非请求参数中单位为秒的end
+// 传入的mp4->end 为文件的大小，而非请求参数中单位为秒的end。
+//调用ngx_http_mp4_read_atom解析mp4最外层的三个盒子:ftyp,moov,mdat
     rc = ngx_http_mp4_read_atom(mp4, ngx_http_mp4_atoms, mp4->end);
     if (rc != NGX_OK) {
         return rc;
@@ -924,15 +938,21 @@ ngx_http_mp4_read_atom(ngx_http_mp4_file_t *mp4,
     ngx_int_t    rc;
     ngx_uint_t   n;
 
+//end表示本次解析后尾部在整个mp4 文件中的偏移
+//mp4->offset表示本次解析前当前位置在整个mp4文件中的偏移
+//atom_data_size表示本次解析需要解析的大小
     end = mp4->offset + atom_data_size;
 
+    //while为true时表示本次解析还没完成
     while (mp4->offset < end) {
 
+        //调用ngx_http_mp4_read检查当前buffer是否够大，如果不够，则重新分配buffer
         if (ngx_http_mp4_read(mp4, sizeof(uint32_t)) != NGX_OK) {
             return NGX_ERROR;
         }
 
         atom_header = mp4->buffer_pos;
+		//解析box header,从中获取box的大小
         atom_size = ngx_mp4_get_32value(atom_header);
         atom_header_size = sizeof(ngx_mp4_atom_header_t);
 
@@ -970,6 +990,7 @@ ngx_http_mp4_read_atom(ngx_http_mp4_file_t *mp4,
         }
 //get box type
         atom_header = mp4->buffer_pos;
+//atom_name就是box header结构中的BoxType
         atom_name = atom_header + sizeof(uint32_t);
 
         ngx_log_debug4(NGX_LOG_DEBUG_HTTP, mp4->file.log, 0,
@@ -995,10 +1016,11 @@ static ngx_http_mp4_atom_handler_t  ngx_http_mp4_atoms[] = {
 };
 
 */
+        // 依次调用本轮解析的处理函数
         for (n = 0; atom[n].name; n++) {
 
             if (ngx_strncmp(atom_name, atom[n].name, 4) == 0) {
-
+                // 更新mp4->buffer_pos和mp4->offset
                 ngx_mp4_atom_next(mp4, atom_header_size);
 
                 rc = atom[n].handler(mp4, atom_size - atom_header_size);
@@ -1025,10 +1047,13 @@ ngx_http_mp4_read(ngx_http_mp4_file_t *mp4, size_t size)
 {
     ssize_t  n;
 
+//当前buffer剩下的空间已经够装下即将读取的size了，就直接退出该函数，不用进行下面的再分配
     if (mp4->buffer_pos + size <= mp4->buffer_end) {
         return NGX_OK;
     }
 
+//mp4->buffer_size初始值为配置文件中配置的buffer_size
+//mp4->offset表示当前已经解析到的位置在mp4文件中的偏移
     if (mp4->offset + (off_t) mp4->buffer_size > mp4->end) {
         mp4->buffer_size = (size_t) (mp4->end - mp4->offset);
     }
@@ -1039,6 +1064,7 @@ ngx_http_mp4_read(ngx_http_mp4_file_t *mp4, size_t size)
         return NGX_ERROR;
     }
 
+//分配新的buffer
     if (mp4->buffer == NULL) {
         mp4->buffer = ngx_palloc(mp4->request->pool, mp4->buffer_size);
         if (mp4->buffer == NULL) {
@@ -1048,6 +1074,7 @@ ngx_http_mp4_read(ngx_http_mp4_file_t *mp4, size_t size)
         mp4->buffer_start = mp4->buffer;
     }
 
+//从mp4文件的当前已解析位置mp4->offset开始，读取mp4->buffer_size的内容到刚分配的新buffer中。ngx_read_file会引起mp4->file->offset的增加
     n = ngx_read_file(&mp4->file, mp4->buffer_start, mp4->buffer_size,
                       mp4->offset);
 
@@ -1125,6 +1152,10 @@ ngx_http_mp4_read_ftyp_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
  */
 #define NGX_HTTP_MP4_MOOV_BUFFER_EXCESS  (4 * 1024)
 
+
+/*
+最重要的解析过程:解析metadata,即moov盒子
+*/
 static ngx_int_t
 ngx_http_mp4_read_moov_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 {
@@ -1182,6 +1213,7 @@ ngx_http_mp4_read_moov_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 
     mp4->moov_atom.buf = &mp4->moov_atom_buf;
 
+//调用ngx_http_mp4_read_atom解析moov盒子，主要是mvhd和trak盒子
     rc = ngx_http_mp4_read_atom(mp4, ngx_http_mp4_moov_atoms, atom_data_size);
 
     ngx_log_debug0(NGX_LOG_DEBUG_HTTP, mp4->file.log, 0, "mp4 moov atom done");
@@ -1347,7 +1379,7 @@ typedef struct {
     u_char    next_track_id[4];
 } ngx_mp4_mvhd64_atom_t;
 
-//mvhd box的处理函数
+//mvhd box的处理函数,主要负责更新duration
 static ngx_int_t
 ngx_http_mp4_read_mvhd_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 {
@@ -1372,6 +1404,7 @@ ngx_http_mp4_read_mvhd_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
         return NGX_ERROR;
     }
 
+// 获取TimeScale和Duration
     if (mvhd_atom->version[0] == 0) {
         /* version 0: 32-bit duration */
         timescale = ngx_mp4_get_32value(mvhd_atom->timescale);
@@ -1403,6 +1436,7 @@ Duration: The total length of the F4V file presentation, in TimeScale units. Thi
                    "mvhd timescale:%uD, duration:%uL, time:%.3fs",
                    timescale, duration, (double) duration / timescale);
 
+    // mp4->start单位为毫秒，所以要除以1000转换成秒。start_time将请求参数中单位为秒的start转换为mp4中的time unit.
     start_time = (uint64_t) mp4->start * timescale / 1000;
 
     if (duration < start_time) {
@@ -1414,8 +1448,9 @@ Duration: The total length of the F4V file presentation, in TimeScale units. Thi
 
     duration -= start_time;
 
-//mp4->length的单位为秒，是参数中end与start的差值
+//mp4->length的单位为毫秒，是参数中end与start的差值转换为毫秒
     if (mp4->length) {
+		//length_time 表示请求参数中end与start之差，转换为mp4的time unit后的长度
         length_time = (uint64_t) mp4->length * timescale / 1000;
 
         if (duration > length_time) {
@@ -1430,6 +1465,7 @@ Duration: The total length of the F4V file presentation, in TimeScale units. Thi
     atom_size = sizeof(ngx_mp4_atom_header_t) + (size_t) atom_data_size;
     ngx_mp4_set_32value(mvhd_atom->size, atom_size);
 
+    // 更新缓存中的duration
     if (mvhd_atom->version[0] == 0) {
         ngx_mp4_set_32value(mvhd_atom->duration, duration);
 
@@ -1481,6 +1517,7 @@ ngx_http_mp4_read_trak_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
     atom_end = mp4->buffer_pos + (size_t) atom_data_size;
     atom_file_end = mp4->offset + atom_data_size;
 
+//调用ngx_http_mp4_read_atom解析trak盒子，主要是tkhd和media盒子
     rc = ngx_http_mp4_read_atom(mp4, ngx_http_mp4_trak_atoms, atom_data_size);
 
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, mp4->file.log, 0,
@@ -1587,6 +1624,7 @@ ngx_http_mp4_read_tkhd_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
         return NGX_ERROR;
     }
 
+    // 获取本track的duration
     if (tkhd_atom->version[0] == 0) {
         /* version 0: 32-bit duration */
         duration = ngx_mp4_get_32value(tkhd_atom->duration);
@@ -1607,7 +1645,7 @@ ngx_http_mp4_read_tkhd_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
     ngx_log_debug2(NGX_LOG_DEBUG_HTTP, mp4->file.log, 0,
                    "tkhd duration:%uL, time:%.3fs",
                    duration, (double) duration / mp4->timescale);
-
+    // start参数转为为 time unit
     start_time = (uint64_t) mp4->start * mp4->timescale / 1000;
 
     if (duration <= start_time) {
@@ -1637,6 +1675,7 @@ ngx_http_mp4_read_tkhd_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 
     ngx_mp4_set_32value(tkhd_atom->size, atom_size);
 
+    // 更新duration
     if (tkhd_atom->version[0] == 0) {
         ngx_mp4_set_32value(tkhd_atom->duration, duration);
 
@@ -1678,6 +1717,9 @@ ngx_http_mp4_read_mdia_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 
     trak->out[NGX_HTTP_MP4_MDIA_ATOM].buf = atom;
 
+/*
+调用ngx_http_mp4_read_atom解析mdia盒子，主要是mdhd,hdlr,minf三个子盒子
+*/
     return ngx_http_mp4_read_atom(mp4, ngx_http_mp4_mdia_atoms, atom_data_size);
 }
 
@@ -1871,6 +1913,7 @@ ngx_http_mp4_read_minf_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 
     trak->out[NGX_HTTP_MP4_MINF_ATOM].buf = atom;
 
+//调用ngx_http_mp4_read_atom解析minf盒子，主要是vmhd,smhd,dinf,stbl四个子盒子
     return ngx_http_mp4_read_atom(mp4, ngx_http_mp4_minf_atoms, atom_data_size);
 }
 
@@ -2039,6 +2082,18 @@ ngx_http_mp4_read_stbl_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 
     trak->out[NGX_HTTP_MP4_STBL_ATOM].buf = atom;
 
+/*
+调用ngx_http_mp4_read_atom解析stbl盒子，主要是
+"stsd"
+"stts",
+"stss", 
+"ctts", 
+"stsc", 
+"stsz", 
+"stco", 
+"co64", 
+这几个盒子
+*/
     return ngx_http_mp4_read_atom(mp4, ngx_http_mp4_stbl_atoms, atom_data_size);
 }
 
