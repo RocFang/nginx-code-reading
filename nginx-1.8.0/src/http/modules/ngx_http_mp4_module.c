@@ -8,7 +8,7 @@
 #include <ngx_core.h>
 #include <ngx_http.h>
 
-
+//用在ngx_http_mp4_trak_t中，ngx_chain_t out[NGX_HTTP_MP4_LAST_ATOM + 1];
 #define NGX_HTTP_MP4_TRAK_ATOM     0
 #define NGX_HTTP_MP4_TKHD_ATOM     1
 #define NGX_HTTP_MP4_MDIA_ATOM     2
@@ -40,21 +40,52 @@
 #define NGX_HTTP_MP4_LAST_ATOM    NGX_HTTP_MP4_CO64_DATA
 
 
+//对应mp4_buffer_size和mp4_max_buffer_size两个配置项
 typedef struct {
     size_t                buffer_size;
     size_t                max_buffer_size;
 } ngx_http_mp4_conf_t;
 
 
+/*
+The Sample To Chunk (stsc) box defines the sample-to-chunk mapping in the sample table of a media track.
+
+stsc:
+Header:BOXHEADER BoxType = 'stsc' (0x73747363)
+Version:UI8 Expected to be 0
+Flags:UI24 Reserved. Set to 0
+Count:UI32 The number of STSCRECORD entries
+Entries:STSCRECORD [Count] An array of STSCRECORD structures
+
+Each STSCRECORD has the following format
+Field           Type Comment
+FirstChunk      UI32 The first chunk that this record applies to
+SamplesPerChunk UI32 The number of consecutive samples that this record applies to
+SampleDescIndex UI32 The sample description that describes this sequence of chunks
+
+可以看到stsc box里每个entry结构体都存有三项数据，它们的意思是：“从first_chunk这个chunk序号开始，每个chunk都有samples_per_chunk个数的sample， 
+而且每个sample都可以通过sample_description_index这个索引，在stsd box中找到描述信息”。也就是说，每个entry结构体描述的是一组chunk， 
+它们有相同的特点，那就是每个chunk包含samples_per_chunk个sample，好，那你要问，这组相同特点的chunk有多少个？ 
+请通过下一个entry结构体来推算，用下一个entry的first_chunk减去本次的first_chunk，就得到了这组chunk的个数。 
+最后一个entry结构体则表明从该first_chunk到最后一个chunk，每个chunk都有sampls_per_chunk个sample。很拗口吧，不过，就是这个意思:)。 
+由于这种算法无法得知文件所有chunk的个数，所以你必须借助于stco或co64
+*/
 typedef struct {
+// FirstChunk 字段
     u_char                chunk[4];
+// SamplesPerChunk 字段
     u_char                samples[4];
+// SampleDescIndex 字段
     u_char                id[4];
 } ngx_mp4_stsc_entry_t;
 
 
+/*
+描述每一个trak的信息
+*/
 typedef struct {
     uint32_t              timescale;
+	//该trak stts表中entry的数目,stts表示time to sample
     uint32_t              time_to_sample_entries;
     uint32_t              sample_to_chunk_entries;
     uint32_t              sync_samples_entries;
@@ -81,8 +112,10 @@ typedef struct {
     size_t                dinf_size;
     size_t                size;
 
+ /* 数组中的每一个节点的buf指针指向下面的各个对应的ngx_buf_t成员, 数组成员构成一个单链表*/
     ngx_chain_t           out[NGX_HTTP_MP4_LAST_ATOM + 1];
 
+/* 下面的每一个ngx_buf_t结构，对应着上面out链的对应节点的buf指针*/
     ngx_buf_t             trak_atom_buf;
     ngx_buf_t             tkhd_atom_buf;
     ngx_buf_t             mdia_atom_buf;
@@ -145,7 +178,7 @@ typedef struct {
 
     size_t                ftyp_size;
     size_t                moov_size;
-
+    //输出链表
     ngx_chain_t          *out;
     ngx_chain_t           ftyp_atom;
     ngx_chain_t           moov_atom;
@@ -180,7 +213,7 @@ typedef struct {
     mp4->buffer_pos += (size_t) n;                                            \
     mp4->offset += n
 
-
+// 设置atom header里的type字段
 #define ngx_mp4_set_atom_name(p, n1, n2, n3, n4)                              \
     ((u_char *) (p))[4] = n1;                                                 \
     ((u_char *) (p))[5] = n2;                                                 \
@@ -219,6 +252,7 @@ typedef struct {
     ((u_char *) (p))[6] = (u_char) (           (n) >> 8);                     \
     ((u_char *) (p))[7] = (u_char)             (n)
 
+//获取最后一个trak
 #define ngx_mp4_last_trak(mp4)                                                \
     &((ngx_http_mp4_trak_t *) mp4->trak.elts)[mp4->trak.nelts - 1]
 
@@ -2125,10 +2159,13 @@ ngx_http_mp4_update_stbl_atom(ngx_http_mp4_file_t *mp4,
 
 
 typedef struct {
+	// size和name为header,分别表征size和type属性
     u_char    size[4];
     u_char    name[4];
+	// version和flag均保留为0
     u_char    version[1];
     u_char    flags[3];
+    // Count
     u_char    entries[4];
 
     u_char    media_size[4];
@@ -2601,12 +2638,14 @@ ngx_http_mp4_crop_stss_data(ngx_http_mp4_file_t *mp4,
     /* sync samples starts from 1 */
 
     if (start) {
+		// start_sample 在ngx_http_mp4_update_stts_atom中的ngx_http_mp4_crop_stts_data中更新
         start_sample = trak->start_sample + 1;
 
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, mp4->file.log, 0,
                        "mp4 stss crop start_sample:%uD", start_sample);
 
     } else if (mp4->length) {
+        //end_sample在ngx_http_mp4_update_stts_atom中的ngx_http_mp4_crop_stts_data中更新
         start_sample = trak->end_sample + 1;
 
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, mp4->file.log, 0,
@@ -2734,7 +2773,18 @@ ngx_http_mp4_read_ctts_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
     return NGX_OK;
 }
 
-
+/*
+时间合成偏移表ctts
+ctts：Composition Offset Atom。每一个视频sample都有一个解码顺序和一个显示顺序。对于一个sample来说，解码顺序和显示顺序可能不一致，比如H.264格式， 
+因此，Composition Offset Atom就是在这种情况下被使用的。
+（1）如果解码顺序和显示顺序是一致的，Composition Offset Atom就不会出现。Time-To-Sample Atoms既提供了解码顺序也提供了显示顺序， 
+并能够计算出每个sample的开始时间和结束时间。
+（2）如果解码顺序和显示顺序不一致，那么Time-To-Sample Atoms既提供解码顺序，Composition Offset Atom则通过差值的形式来提供显示时间。
+Composition Offset Atom提供了一个从解码时间到显示时间的sample一对一的映射，具有如下的映射关系：
+CT(n) = DT(n) + CTTS(n)
+其中，CTTS(n)是sample n在table中的entry（这里假设一个entry只对应一个sample）可以是正值也可是负值；DT(n)是sample n的解码时间， 
+通过Time-To-Sample Atoms计算获得；CT(n)便是sample n的显示时间。
+*/
 static void
 ngx_http_mp4_update_ctts_atom(ngx_http_mp4_file_t *mp4,
     ngx_http_mp4_trak_t *trak)
