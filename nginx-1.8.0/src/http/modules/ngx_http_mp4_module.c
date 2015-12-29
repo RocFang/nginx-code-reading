@@ -87,9 +87,12 @@ typedef struct {
     uint32_t              timescale;
 	//该trak stts表中entry的数目,stts表示time to sample
     uint32_t              time_to_sample_entries;
+	//该trak stsc表中entry的数目，stsc表示 sample to chunk
     uint32_t              sample_to_chunk_entries;
     uint32_t              sync_samples_entries;
+	//该trak中ctts表中entry的数目,ctts表示Composition Time to Sample box
     uint32_t              composition_offset_entries;
+	//该trak中stsz表中entry的数目，stsz表示sample to sample size的映射
     uint32_t              sample_sizes_entries;
     uint32_t              chunks;
 
@@ -2846,12 +2849,14 @@ ngx_http_mp4_crop_ctts_data(ngx_http_mp4_file_t *mp4,
     /* sync samples starts from 1 */
 
     if (start) {
+		// start_sample 在ngx_http_mp4_update_stts_atom中的ngx_http_mp4_crop_stts_data中被确定
         start_sample = trak->start_sample + 1;
 
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, mp4->file.log, 0,
                        "mp4 ctts crop start_sample:%uD", start_sample);
 
     } else if (mp4->length) {
+        //end_sample在ngx_http_mp4_update_stts_atom中的ngx_http_mp4_crop_stts_data中被确定
         start_sample = trak->end_sample - trak->start_sample + 1;
 
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, mp4->file.log, 0,
@@ -3069,12 +3074,14 @@ ngx_http_mp4_crop_stsc_data(ngx_http_mp4_file_t *mp4,
     entries = trak->sample_to_chunk_entries - 1;
 
     if (start) {
+		// start_sample 在ngx_http_mp4_crop_stts_data中更新
         start_sample = (uint32_t) trak->start_sample;
 
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, mp4->file.log, 0,
                        "mp4 stsc crop start_sample:%uD", start_sample);
 
     } else if (mp4->length) {
+        // end_sample在ngx_http_mp4_crop_stts_data中更新
         start_sample = (uint32_t) (trak->end_sample - trak->start_sample);
         samples = 0;
 
@@ -3378,7 +3385,7 @@ ngx_http_mp4_update_stsz_atom(ngx_http_mp4_file_t *mp4,
                           mp4->file.name.data);
             return NGX_ERROR;
         }
-
+        // trak->start_sample和trak.end_sample均在ngx_http_mp4_crop_stts_data中更新
         entries -= trak->start_sample;
         data->pos += trak->start_sample * sizeof(uint32_t);
         end = (uint32_t *) data->pos;
