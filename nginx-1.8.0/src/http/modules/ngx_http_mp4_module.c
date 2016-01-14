@@ -9,6 +9,7 @@
 #include <ngx_http.h>
 
 //ÓÃÔÚngx_http_mp4_trak_tÖĞ£¬ngx_chain_t out[NGX_HTTP_MP4_LAST_ATOM + 1];
+//ÏÂÃæ±íÊ¾¸÷bufferÔÚÕâ¸öngx_chain_tÀàĞÍµÄÊı×éÖĞµÄÎ»ÖÃË÷Òı
 #define NGX_HTTP_MP4_TRAK_ATOM     0
 #define NGX_HTTP_MP4_TKHD_ATOM     1
 #define NGX_HTTP_MP4_MDIA_ATOM     2
@@ -27,6 +28,13 @@
 #define NGX_HTTP_MP4_CTTS_ATOM    15
 #define NGX_HTTP_MP4_CTTS_DATA    16
 #define NGX_HTTP_MP4_STSC_ATOM    17
+/*
+×¢Òâ:stsc·Ö³ÉÁËÈı²¿·Ö£¬
+NGX_HTTP_MP4_STSC_START
+NGX_HTTP_MP4_STSC_DATA
+NGX_HTTP_MP4_STSC_END
+Ë³Ğò²»ÄÜ±ä£¬Ö®ËùÒÔ·Ö³ÉÈı¸öbuffer£¬ÊÇÒòÎªstscºĞ×ÓµÄ¸´ÔÓĞÔµ¼ÖÂµÄ
+*/
 #define NGX_HTTP_MP4_STSC_START   18
 #define NGX_HTTP_MP4_STSC_DATA    19
 #define NGX_HTTP_MP4_STSC_END     20
@@ -84,16 +92,19 @@ typedef struct {
 ÃèÊöÃ¿Ò»¸ötrakµÄĞÅÏ¢
 */
 typedef struct {
+    //³õÊÔ»¯ÎªmdhdºĞ×ÓÖĞµÄtimescaleÖµ£¬ÔÚngx_http_mp4_read_mdhd_atomÖĞ
     uint32_t              timescale;
 	//¸Ãtrak stts±íÖĞentryµÄÊıÄ¿,stts±íÊ¾time to sample
     uint32_t              time_to_sample_entries;
 	//¸Ãtrak stsc±íÖĞentryµÄÊıÄ¿£¬stsc±íÊ¾ sample to chunk
     uint32_t              sample_to_chunk_entries;
+	//¸Ãtrak stss±íÖĞentryµÄÊıÄ¿£¬stss±íÊ¾¹Ø¼üÖ¡
     uint32_t              sync_samples_entries;
 	//¸ÃtrakÖĞctts±íÖĞentryµÄÊıÄ¿,ctts±íÊ¾Composition Time to Sample box
     uint32_t              composition_offset_entries;
 	//¸ÃtrakÖĞstsz±íÖĞentryµÄÊıÄ¿£¬stsz±íÊ¾sample to sample sizeµÄÓ³Éä
     uint32_t              sample_sizes_entries;
+	//¸ÃtrakÖĞstco/co64±íÖĞentryµÄÊıÄ¿,stco/co64±íÊ¾Ã¿¸ötrunkÔÚÎÄ¼şÖĞµÄÆ«ÒÆ
     uint32_t              chunks;
 
     ngx_uint_t            start_sample;
@@ -115,7 +126,8 @@ typedef struct {
     size_t                dinf_size;
     size_t                size;
 
- /* Êı×éÖĞµÄÃ¿Ò»¸ö½ÚµãµÄbufÖ¸ÕëÖ¸ÏòÏÂÃæµÄ¸÷¸ö¶ÔÓ¦µÄngx_buf_t³ÉÔ±, Êı×é³ÉÔ±¹¹³ÉÒ»¸öµ¥Á´±í*/
+ /* Êı×éÖĞµÄÃ¿Ò»¸ö½ÚµãµÄbufÖ¸ÕëÖ¸ÏòÏÂÃæµÄ¸÷¸ö¶ÔÓ¦µÄngx_buf_t³ÉÔ±£¬Ã¿¸ö³ÉÔ±µÄË÷ÒıÓÉÀàËÆ"NGX_HTTP_MP4_TRAK_ATOM"ÕâÑùµÄºêÀ´±íÊ¾,
+ £¬ËùÓĞµÄÕâĞ©ºêÇ°ÃæÒÑ¾­¶¨Òå£¬Êı×é³ÉÔ±¹¹³ÉÒ»¸öµ¥Á´±í*/
     ngx_chain_t           out[NGX_HTTP_MP4_LAST_ATOM + 1];
 
 /* ÏÂÃæµÄÃ¿Ò»¸öngx_buf_t½á¹¹£¬¶ÔÓ¦×ÅÉÏÃæoutÁ´µÄ¶ÔÓ¦½ÚµãµÄbufÖ¸Õë*/
@@ -136,6 +148,7 @@ typedef struct {
     ngx_buf_t             stss_data_buf;
     ngx_buf_t             ctts_atom_buf;
     ngx_buf_t             ctts_data_buf;
+	//×¢Òâstsc±ÈÆäËûbox¶àÁËstsc_start_chunk_bufºÍstsc_end_chunk_bufÁ½¸öbuffer
     ngx_buf_t             stsc_atom_buf;
     ngx_buf_t             stsc_start_chunk_buf;
     ngx_buf_t             stsc_end_chunk_buf;
@@ -163,7 +176,7 @@ typedef struct {
 	//ÅäÖÃµÄbuffer_size
     size_t                buffer_size;
 
-    //¼ÇÂ¼Ã¿´Î½âÎöÇ°µ±Ç°Î»ÖÃÔÚÕû¸ömp4ÎÄ¼şÖĞµÄÆ«ÒÆ
+    //¼ÇÂ¼Ã¿´Î½âÎöÇ°µ±Ç°Î»ÖÃÔÚÕû¸ömp4ÎÄ¼şÖĞµÄÆ«ÒÆ,×¢ÒâÊÇÕû¸öÎÄ¼ş£¬¶ø·Çµ±Ç°buffer
     off_t                 offset;
 	// endÎªmp4ÎÄ¼ş´óĞ¡£¬¶ø·ÇÇëÇó²ÎÊıÖĞµ¥Î»ÎªÃëµÄend
     off_t                 end;
@@ -172,10 +185,11 @@ typedef struct {
     ngx_uint_t            start;
 	// lengthÎªÇëÇó²ÎÊıÖĞendÓëstartÖ®²î£¬µ¥Î»ÎªºÁÃë
     ngx_uint_t            length;
+	//ÔÚngx_http_mp4_read_mvhd_atomÖĞÉèÖÃÎªmvhdÖĞµÄtimescaleÖµ
     uint32_t              timescale;
 	// Ö¸Ïòµ±Ç°ÇëÇó
     ngx_http_request_t   *request;
-	// trackÈİÆ÷Êı×é
+	// trackÈİÆ÷Êı×é,³õÊ¼»¯ÎªÏÂÃæµÄtraks[2]Êı×é,¸Ã³õÊ¼»¯¶¯×÷ÔÚngx_http_mp4_read_moov_atomÖĞÍê³É
     ngx_array_t           trak;
     ngx_http_mp4_trak_t   traks[2];
 
@@ -216,13 +230,25 @@ typedef struct {
     mp4->buffer_pos += (size_t) n;                                            \
     mp4->offset += n
 
-// ÉèÖÃatom headerÀïµÄtype×Ö¶Î
+/*
+ÉèÖÃatom headerÀïµÄtype×Ö¶Î,box headerµÄ¸ñÊ½ÈçÏÂ:
+
+field			type
+TotalSize		UI32
+BoxType		UI32
+ExtendedSize	IFTotalSize == 1 UI64
+*/
 #define ngx_mp4_set_atom_name(p, n1, n2, n3, n4)                              \
     ((u_char *) (p))[4] = n1;                                                 \
     ((u_char *) (p))[5] = n2;                                                 \
     ((u_char *) (p))[6] = n3;                                                 \
     ((u_char *) (p))[7] = n4
 
+/*
+Multi-byte integers shall be stored in big-endian byte order, in contrast with SWF, which uses little-endian byte
+order.
+¶à×Ö½ÚµÄÕûÊı£¬²ÉÓÃ´ó¶Ë¶ÔÆäµÄ·½Ê½¡£
+*/
 #define ngx_mp4_get_32value(p)                                                \
     ( ((uint32_t) ((u_char *) (p))[0] << 24)                                  \
     + (           ((u_char *) (p))[1] << 16)                                  \
@@ -434,7 +460,7 @@ trak: ±»moovºĞ×Ó°üº¬.Each Track(trak) box corresponds to a individual media trac
 static ngx_http_mp4_atom_handler_t  ngx_http_mp4_moov_atoms[] = {
     { "mvhd", ngx_http_mp4_read_mvhd_atom },
     { "trak", ngx_http_mp4_read_trak_atom },
-    { "cmov", ngx_http_mp4_read_cmov_atom },
+    { "cmov", ngx_http_mp4_read_cmov_atom },//Ôİ²»Ö§³Ö
     { NULL, NULL }
 };
 
@@ -472,6 +498,7 @@ stbl:sample table box, container for the time/space map
 static ngx_http_mp4_atom_handler_t  ngx_http_mp4_minf_atoms[] = {
     { "vmhd", ngx_http_mp4_read_vmhd_atom },
     { "smhd", ngx_http_mp4_read_smhd_atom },
+    //dinfºĞ×Ó²»×ö¶îÍâ´¦Àí
     { "dinf", ngx_http_mp4_read_dinf_atom },
     { "stbl", ngx_http_mp4_read_stbl_atom },
     { NULL, NULL }
@@ -500,7 +527,7 @@ static ngx_http_mp4_atom_handler_t  ngx_http_mp4_stbl_atoms[] = {
     { NULL, NULL }
 };
 
-
+/* content_handler */
 static ngx_int_t
 ngx_http_mp4_handler(ngx_http_request_t *r)
 {
@@ -827,6 +854,7 @@ ngx_http_mp4_process(ngx_http_mp4_file_t *mp4)
         return NGX_ERROR;
     }
 
+//»º³åÇøµÄ´®Áª
     prev = &mp4->out;
 
     if (mp4->ftyp_atom.buf) {
@@ -1012,7 +1040,11 @@ ngx_http_mp4_read_atom(ngx_http_mp4_file_t *mp4,
                            "mp4 atom end");
             return NGX_OK;
         }
-
+        /*
+atom_sizeÎª´Óatom_headerÍ·ÖĞ¶ÁÈ¡µ½µÄ×Ö¶ÎÖµ,ÊÇÕû¸öatomµÄ´óĞ¡£¬°üÀ¨headerºÍdata
+sizeof(ngx_mp4_atom_header_tÎªÍ·±¾ÉíµÄ´óĞ¡£¬´ÓÂß¼­ÉÏËµ£¬atom_size¿Ï¶¨±ÈËü´ó£¬µ«ÊÇatom_sizeÓĞ¿ÉÄÜÎª1.Îª1Ê±±íÊ¾£¬½ÓÏÂÀ´µÄ64Î»Êı¾İ£¬²ÅÊÇÕæÊµ
+µÄatom´óĞ¡¡£
+*/
         if (atom_size < sizeof(ngx_mp4_atom_header_t)) {
 
             if (atom_size == 1) {
@@ -1025,6 +1057,7 @@ ngx_http_mp4_read_atom(ngx_http_mp4_file_t *mp4,
 
                 /* 64-bit atom size */
                 atom_header = mp4->buffer_pos;
+				/*Ìø¹ı4×Ö½ÚµÄTotalSizeºÍ4×Ö½ÚµÄBoxType£¬»ñÈ¡64Î»µÄExtendedSize*/
                 atom_size = ngx_mp4_get_64value(atom_header + 8);
                 atom_header_size = sizeof(ngx_mp4_atom_header64_t);
 
@@ -1067,7 +1100,7 @@ static ngx_http_mp4_atom_handler_t  ngx_http_mp4_atoms[] = {
 };
 
 */
-        // ÒÀ´Îµ÷ÓÃ±¾ÂÖ½âÎöµÄ´¦Àíº¯Êı
+        // ±éÀú´«ÈëµÄhandlerÊı×é£¬´ÓÕâÀï¿ÉÒÔ¿´³ö£¬nginx¿ÉÒÔ´¦ÀímoovºĞ×ÓÔÚºóÃæµÄÊÓÆµ
         for (n = 0; atom[n].name; n++) {
 
             if (ngx_strncmp(atom_name, atom[n].name, 4) == 0) {
@@ -1082,7 +1115,7 @@ static ngx_http_mp4_atom_handler_t  ngx_http_mp4_atoms[] = {
                 goto next;
             }
         }
-
+// Èç¹ûµ±Ç°¶Áµ½µÄatom typeÔÚ´«ÈëµÄhandlerÊı×éÀïÕÒ²»µ½Æ¥ÅäµÄ£¬Ôònginx²»´¦Àí£¬Ö±½ÓÌø¹ı¡£¶ÔÍâ½âÊÍ¾ÍÊÇnginx²»Ö§³ÖÕâÖÖºĞ×Ó
         ngx_mp4_atom_next(mp4, atom_size);
 
     next:
@@ -1219,6 +1252,9 @@ ngx_http_mp4_read_moov_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 
     no_mdat = (mp4->mdat_atom.buf == NULL);
 
+/*
+Èç¹ûmoovºĞ×ÓÔÚmdatÖ®Ç°(¶àÊıÇé¿ö),ÇÒstartºÍend¾ùÎª0£¬»òÕßÖ»ÓĞstratÃ»ÓĞend£¬Ôò²»Á÷»¯£¬Ö±½Ó·¢ËÍÔ­Ê¼ÎÄ¼ş
+*/
     if (no_mdat && mp4->start == 0 && mp4->length == 0) {
         /*
          * send original file if moov atom resides before
@@ -1252,6 +1288,11 @@ ngx_http_mp4_read_moov_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
         return NGX_ERROR;
     }
 
+/*
+½«ngx_http_mp4_file_t½á¹¹ÌåÖĞµÄngx_array_tÀàĞÍµÄtrak£¬³õÊ¼»¯ÎªÖ¸Ïò½á¹¹ÌåÖĞµÄtrakÊı×é£¬¸ÃÊı×é³ÉÔ±Îª0.
+¼´½«trak³õÊ¼»¯ÎªÒ»¸öÓµÓĞÁ½¸öngx_http_mp4_trak_tÀàĞÍÔªËØµÄÊı×é¡£´ó¶àÊıÇé¿öÏÂ£¬Ò»¸ömp4ÎÄ¼şÒ²È·ÊµÖ»ÓĞÁ½¸ötrak£¬Èç¹û
+²»Ö¹Á½¸ö£¬ÔòºóÃæÔÙÎªtrak¶¯Ì¬·ÖÅäÔªËØ
+*/
     mp4->trak.elts = &mp4->traks;
     mp4->trak.size = sizeof(ngx_http_mp4_trak_t);
     mp4->trak.nalloc = 2;
@@ -1281,6 +1322,9 @@ ngx_http_mp4_read_moov_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 
     } else {
         /* skip atoms after moov atom */
+		/*
+		Èç¹ûmdatºĞ×ÓÔÚmoovºĞ×ÓÖ®Ç°£¬ÔòÔÚ½âÎöÍêmoovºó£¬²»ÔÙ½âÎöÖ®ºóµÄºĞ×Ó(Èç¹ûÓĞµÄ»°)
+		*/
         mp4->offset = mp4->end;
     }
 
@@ -1650,7 +1694,10 @@ typedef struct {
     u_char    heigth[4];
 } ngx_mp4_tkhd64_atom_t;
 
-
+/*
+1. ¶ÁÈ¡tkhdºĞ×ÓµÄÄÚÈİµ½tak->out[NGX_HTTP_MP4_TKHD_ATOM]
+2. ¸ù¾İstart,end²ÎÊı£¬¸üĞÂÉÏÃæ»º³åÇøÖĞµÄtkhdµÄdurationºÍsize
+*/
 static ngx_int_t
 ngx_http_mp4_read_tkhd_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 {
@@ -1746,7 +1793,10 @@ ngx_http_mp4_read_tkhd_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
     return NGX_OK;
 }
 
-
+/*
+1. ½«mdiaºĞ×ÓµÄÄÚÈİ(²»°üÀ¨ÏÂÃæµÄ×ÓºĞ×Ó)µÄÄÚÈİ¶ÁÈ¡µ½trak->out[NGX_HTTP_MP4_MDIA_ATOM] bufferÖĞ
+2. µ÷ÓÃngx_http_mp4_mdia_atomsÊı×é½øĞĞ×ÓºĞ×ÓµÄ½âÎö
+*/
 static ngx_int_t
 ngx_http_mp4_read_mdia_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 {
@@ -1813,7 +1863,10 @@ typedef struct {
     u_char    quality[2];
 } ngx_mp4_mdhd64_atom_t;
 
-
+/*
+1.½«mdhdºĞ×ÓµÄÄÚÈİ¶Áµ½trak->out[NGX_HTTP_MP4_MDHD_ATOM]ÖĞ.
+2.¸üĞÂ»º³åÇøÖĞµÄsizeºÍduration
+*/
 static ngx_int_t
 ngx_http_mp4_read_mdhd_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 {
@@ -1911,7 +1964,10 @@ ngx_http_mp4_read_mdhd_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
     return NGX_OK;
 }
 
-
+/*
+1. ½«hdlrºĞ×ÓµÄÄÚÈİ¶ÁÈ¡µ½trak->out[NGX_HTTP_MP4_HDLR_ATOM]ÖĞ
+2. ¸üĞÂsize
+*/
 static ngx_int_t
 ngx_http_mp4_read_hdlr_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 {
@@ -1942,7 +1998,10 @@ ngx_http_mp4_read_hdlr_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
     return NGX_OK;
 }
 
-
+/*
+1. ¶ÁÈ¡minf boxµ½trak->out[NGX_HTTP_MP4_MINF_ATOM]ÖĞ
+2. µ÷ÓÃngx_http_mp4_minf_atoms handlerÊı×é½øĞĞ×ÓºĞ×ÓµÄ½âÎö
+*/
 static ngx_int_t
 ngx_http_mp4_read_minf_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 {
@@ -1991,6 +2050,9 @@ Quantity: One for a video track, otherwise zero.
 The Video Media Header (vmhd) box contains general information for video media, independent of the coding
 used. The vmhd box should be placed first in its container.
 */
+/*
+1. ¶ÁÈ¡vmhdºĞ×ÓµÄÄÚÈİµ½trak->out[NGX_HTTP_MP4_VMHD_ATOM]
+*/
 static ngx_int_t
 ngx_http_mp4_read_vmhd_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 {
@@ -2030,6 +2092,9 @@ Quantity: One for an audio track, otherwise zero.
 The Sound Media Header box contains general information for audio media, independent of the coding used. The
 smhd box should be placed first in its container.
 */
+/*
+1. ¶ÁÈ¡smhdºĞ×ÓµÄÄÚÈİµ½trak->out[NGX_HTTP_MP4_SMHD_ATOM]
+*/
 static ngx_int_t
 ngx_http_mp4_read_smhd_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 {
@@ -2068,6 +2133,9 @@ Mandatory: Yes
 Quantity: One
 The Data Information (dinf) box contains a Data Reference (dref) box, which declares the location of the media data
 in a track. The dinf box should precede the Sample Table (stbl) box.
+*/
+/*
+1. ¶ÁÈ¡dinfºĞ×ÓµÄÄÚÈİµ½trak->out[NGX_HTTP_MP4_DINF_ATOM]
 */
 static ngx_int_t
 ngx_http_mp4_read_dinf_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
@@ -2111,6 +2179,10 @@ Sample (stts), Sample to Chunk (stsc), Sample Size (stsz), Chunk Offset (stco or
 The Sample Description (stsd) box and its contained boxes are specified in section 2.8 Sample Description Box
 Structure.
 
+*/
+/*
+1. ½«stblºĞ×ÓµÄÄÚÈİ¶ÁÈ¡µ½trak->out[NGX_HTTP_MP4_STBL_ATOM]ÖĞ
+2. µ÷ÓÃngx_http_mp4_stbl_atoms½øĞĞ×ÓºĞ×ÓµÄ½âÎö
 */
 static ngx_int_t
 ngx_http_mp4_read_stbl_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
@@ -2187,6 +2259,9 @@ Table 2 shows the hierarchy within the Sample Description box.
 For more information, see section 8.5.2 of ISO/IEC 14496-12.
 
 */
+/*
+1. ½«stsdºĞ×ÓµÄÄÚÈİ¶ÁÈ¡µ½trak->out[NGX_HTTP_MP4_STSD_ATOM]ÖĞ
+*/
 static ngx_int_t
 ngx_http_mp4_read_stsd_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 {
@@ -2260,6 +2335,11 @@ Mandatory: Yes
 Quantity: One
 The Decoding Time to Sample (stts) box defines the time-to-sample mapping for a sample table.
 
+*/
+/*
+1. ½«sttsµÄ·ÇEntries²¿·Ö£¬¶ÁÈ¡µ½trak->out[NGX_HTTP_MP4_STTS_ATOM]ÖĞ
+2. ½«stssµÄEntries²¿·Ö£¬¶ÁÈ¡µ½trak->out[NGX_HTTP_MP4_STTS_DATA]ÖĞ
+3. ½«stssµÄEntriesµÄÊıÁ¿£¬±£´æµ½trak->time_to_sample_entries
 */
 static ngx_int_t
 ngx_http_mp4_read_stts_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
@@ -2337,7 +2417,7 @@ ngx_http_mp4_update_stts_atom(ngx_http_mp4_file_t *mp4,
 
     ngx_log_debug0(NGX_LOG_DEBUG_HTTP, mp4->file.log, 0,
                    "mp4 stts atom update");
-
+// trak->out[NGX_HTTP_MP4_STTS_DATA]ÊÇsttsµÄEntries²¿·Ö
     data = trak->out[NGX_HTTP_MP4_STTS_DATA].buf;
 
     if (data == NULL) {
@@ -2347,10 +2427,11 @@ ngx_http_mp4_update_stts_atom(ngx_http_mp4_file_t *mp4,
         return NGX_ERROR;
     }
 
+// ´¦Àístart
     if (ngx_http_mp4_crop_stts_data(mp4, trak, 1) != NGX_OK) {
         return NGX_ERROR;
     }
-
+// ´¦Àíend
     if (ngx_http_mp4_crop_stts_data(mp4, trak, 0) != NGX_OK) {
         return NGX_ERROR;
     }
@@ -2498,6 +2579,11 @@ sync sample atomÈ·¶¨mediaÖĞµÄ¹Ø¼üÖ¡¡£¶ÔÓÚÑ¹ËõµÄÃ½Ìå£¬¹Ø¼üÖ¡ÊÇÒ»ÏµÁĞÑ¹ËõĞòÁĞµÄ¿ªÊ
 sync sample atom¿ÉÒÔ·Ç³£½ô´ÕµÄ±ê¼ÇÃ½ÌåÄÚµÄËæ»ú´æÈ¡µã¡£Ëü°üº¬Ò»¸ösampleĞòºÅ±í£¬±íÄÚµÄÃ¿Ò»ÏîÑÏ¸ñ°´ÕÕsampleµÄĞòºÅÅÅÁĞ£¬ËµÃ÷ÁËÃ½ÌåÖĞµÄÄÄÒ»¸ösampleÊÇ¹Ø¼üÖ¡¡£Èç¹û´Ë±í²»´æÔÚ£¬ËµÃ÷Ã¿Ò»¸ösample¶¼ÊÇÒ»¸ö¹Ø¼üÖ¡£¬ÊÇÒ»¸öËæ»ú´æÈ¡µã¡£
 
 
+*/
+/*
+1. ¶ÁÈ¡stssµÄ·ÇEntries²¿·Öµ½trak->out[NGX_HTTP_MP4_STSS_ATOM]ÖĞ
+2. ¶ÁÈ¡stssµÄEntries²¿·Öµ½trak->out[NGX_HTTP_MP4_STSS_DATA]ÖĞ
+3. ½«entriesÊıÁ¿±£´æµ½trak->sync_samples_entries
 */
 static ngx_int_t
 ngx_http_mp4_read_stss_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
@@ -2715,6 +2801,11 @@ Quantity: One
 The Composition Time to Sample (ctts) box defines the composition time to sample mapping for a sample table.
 
 */
+/*
+1. ½«cttsµÄ·ÇEntries²¿·Ö¶ÁÈ¡µ½trak->out[NGX_HTTP_MP4_CTTS_ATOM]ÖĞ
+2. ½«cttsµÄEntries²¿·Ö¶ÁÈ¡µ½trak->out[NGX_HTTP_MP4_CTTS_DATA]ÖĞ
+3. ½«entriesÊıÁ¿¶ÁÈ¡µ½trak->composition_offset_entriesÖĞ
+*/
 static ngx_int_t
 ngx_http_mp4_read_ctts_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 {
@@ -2927,6 +3018,11 @@ Quantity: One
 The Sample To Chunk (stsc) box defines the sample-to-chunk mapping in the sample table of a media track.
 stsc box
 
+*/
+/*
+1. ½«stscµÄ·ÇEntries²¿·Ö¶ÁÈ¡µ½trak->out[NGX_HTTP_MP4_STSC_ATOM]ÖĞ
+2. ½«stscµÄEntries²¿·Ö¶ÁÈ¡µ½trak->out[NGX_HTTP_MP4_STSC_DATA]ÖĞ
+3. ½«entriesÊıÁ¿¶ÁÈ¡µ½trak->sample_to_chunk_entriesÖĞ
 */
 static ngx_int_t
 ngx_http_mp4_read_stsc_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
@@ -3278,6 +3374,11 @@ Quantity: One
 The Sample Size (stsz) box specifies the size of each sample in a sample table.
 
 */
+/*
+1. ½«stszµÄ·ÇEntries²¿·Ö¶ÁÈ¡µ½trak->out[NGX_HTTP_MP4_STSZ_ATOM]ÖĞ
+2. ½«stscµÄEntries²¿·Ö¶ÁÈ¡µ½trak->out[NGX_HTTP_MP4_STSZ_DATA]ÖĞ
+3. ½«entriesµÄÊıÁ¿¶ÁÈ¡µ½trak->sample_sizes_entriesÖĞ
+*/
 static ngx_int_t
 ngx_http_mp4_read_stsz_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
 {
@@ -3450,6 +3551,11 @@ Quantity: One
 Each Sample Table box shall contain one Chunk Offset box of either the stco or the co64 type. The stco and co64
 boxes define chunk offsets for each chunk in a sample table.
 
+*/
+/*
+1. ½«stcoµÄ·ÇEntries²¿·Ö¶ÁÈ¡µ½trak->out[NGX_HTTP_MP4_STCO_ATOM]ÖĞ
+2. ½«stcoµÄEntries²¿·Ö¶ÁÈ¡µ½trak->out[NGX_HTTP_MP4_STCO_DATA]ÖĞ
+3. ½«entriesÊıÁ¿¶ÁÈ¡µ½trak->trunksÖĞ
 */
 static ngx_int_t
 ngx_http_mp4_read_stco_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
@@ -3643,6 +3749,11 @@ Quantity: One
 Each Sample Table box shall contain one Chunk Offset box of either the stco or the co64 type. The stco and co64
 boxes define chunk offsets for each chunk in a sample table.
 
+*/
+/*
+1. ½«co64µÄ·ÇEntries²¿·Ö¶ÁÈ¡µ½trak->out[NGX_HTTP_MP4_CO64_ATOM]ÖĞ
+2. ½«co64µÄEntries²¿·Ö¶ÁÈ¡µ½trak->out[NGX_HTTP_MP4_CO64_DATA]ÖĞ
+3. ½«entriesµÄÊıÁ¿¶ÁÈ¡µ½trak->chunksÖĞ
 */
 static ngx_int_t
 ngx_http_mp4_read_co64_atom(ngx_http_mp4_file_t *mp4, uint64_t atom_data_size)
