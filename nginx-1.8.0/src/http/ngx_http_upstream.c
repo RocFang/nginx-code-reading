@@ -1070,10 +1070,14 @@ ngx_http_upstream_handler(ngx_event_t *ev)
     ngx_http_request_t   *r;
     ngx_http_upstream_t  *u;
 
+	/*由事件的data成员取得ngx_connection_t连接。注意，这个连接并不是Nginx与客户端的连接，而是Nginx与上游服务器间的连接*/
     c = ev->data;
+	//由连接的data成员取得ngx_http_request_t结构体
     r = c->data;
 
+	/*由请求的upstream成员取得表示upstream机制的Ngx_http_upstream_t结构体*/
     u = r->upstream;
+	/*注意，ngx_http_request_t结构体中的这个connection连接是客户端与Nginx间的连接*/
     c = r->connection;
 
     ngx_http_set_log_request(c->log, r);
@@ -1082,11 +1086,15 @@ ngx_http_upstream_handler(ngx_event_t *ev)
                    "http upstream request: \"%V?%V\"", &r->uri, &r->args);
 
     if (ev->write) {
+		 /*当Nginx与上游服务器间TCP连接的可写事件被触发时，upstream的write_event_handler方法会被调用*/
         u->write_event_handler(r, u);
 
     } else {
+        /*当Nginx与上游服务器间TCP连接的可读事件被触发时，upstream的read_event_handler方法会被调用*/
         u->read_event_handler(r, u);
     }
+	/*ngx_http_run_posted_requests方法正是第11章图11-12所说的方法。注意，这个参数c是来自客户端的连接，
+	post请求的执行也与图11-12完全一致*/
 
     ngx_http_run_posted_requests(c);
 }
@@ -1830,6 +1838,7 @@ ngx_http_upstream_send_request(ngx_http_request_t *r, ngx_http_upstream_t *u,
     ngx_add_timer(c->read, u->conf->read_timeout);
 
     if (c->read->ready) {
+		//调用gx_http_upstream_process_header方法接收上游服务器的响应
         ngx_http_upstream_process_header(r, u);
         return;
     }
@@ -1959,12 +1968,16 @@ ngx_http_upstream_send_request_handler(ngx_http_request_t *r,
 {
     ngx_connection_t  *c;
 
+	//获取与上游服务器间表示连接的ngx_connection_t结构体
     c = u->peer.connection;
 
     ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                    "http upstream send request handler");
 
+	//写事件的timedout标志位为1时表示向上游服务器发送的请求已经超时
     if (c->write->timedout) {
+		 /*将超时错误传递给ngx_http_upstream_next方法，该方法将会根据允许的错误重连策略决定：
+		 重新发起连接执行upstream请求，或者结束upstream请求，详见12.9.2节*/
         ngx_http_upstream_next(r, u, NGX_HTTP_UPSTREAM_FT_TIMEOUT);
         return;
     }
@@ -1977,15 +1990,17 @@ ngx_http_upstream_send_request_handler(ngx_http_request_t *r,
     }
 
 #endif
-
+	/*header_sent标志位为1时表明上游服务器的响应需要直接转发给客户端，而且此时Nginx已经把响应包头转发给客户端了*/
     if (u->header_sent) {
+    /*事实上，header_sent为1时一定是已经解析完全部的上游响应包头，并且开始向下游发送HTTP的包头了。
+      到此，是不应该继续向上游发送请求的，所以把write_event_handler设为任何工作都没有做的ngx_http_upstream_dummy_handler方法*/
         u->write_event_handler = ngx_http_upstream_dummy_handler;
-
+	    //将写事件添加到epoll中
         (void) ngx_handle_write_event(c->write, 0);
-
+		//因为不存在继续发送请求到上游的可能，所以直接返回
         return;
     }
-
+	//调用ngx_http_upstream_send_request方法向上游服务器发送请求
     ngx_http_upstream_send_request(r, u, 1);
 }
 
@@ -2015,6 +2030,12 @@ ngx_http_upstream_read_request_handler(ngx_http_request_t *r)
 static void
 ngx_http_upstream_process_header(ngx_http_request_t *r, ngx_http_upstream_t *u)
 {
+
+	/*
+	只有请求触发了失败条件后，才会执行ngx_http_upstream_next方法，该方法将会根据配置信息决定下一步究竟是重新发起upstream请求，
+	还是结束当前请求，在12.9.2节会详细说明该方法的工作流程。当前读事件处理完毕。
+	*/
+
     ssize_t            n;
     ngx_int_t          rc;
     ngx_time_t        *tp;
@@ -2028,15 +2049,22 @@ ngx_http_upstream_process_header(ngx_http_request_t *r, ngx_http_upstream_t *u)
     c->log->action = "reading response header from upstream";
 
     if (c->read->timedout) {
+		//读取响应已经超时
         ngx_http_upstream_next(r, u, NGX_HTTP_UPSTREAM_FT_TIMEOUT);
         return;
     }
-
+/*
+检查request_sent 标志位，如果request_sent为0，则表示还没有发送请求到上游服务器就收到了来自上游的响应，不符合
+upstream的设计场景
+*/
     if (!u->request_sent && ngx_http_upstream_test_connect(c) != NGX_OK) {
         ngx_http_upstream_next(r, u, NGX_HTTP_UPSTREAM_FT_ERROR);
         return;
     }
-
+/*
+检查ngx_http_upstream_t结构体中接收响应头部的buffer缓冲区，如果它的start成员指向NULL，
+说明缓冲区还未分配内存，这时将按照ngx_http_upstream_conf_t配置结构体中的buffer_size成员指定的大小来为buffer缓冲区分配内存。
+*/
     if (u->buffer.start == NULL) {
         u->buffer.start = ngx_palloc(r->pool, u->conf->buffer_size);
         if (u->buffer.start == NULL) {
@@ -2078,7 +2106,11 @@ ngx_http_upstream_process_header(ngx_http_request_t *r, ngx_http_upstream_t *u)
 #if 0
             ngx_add_timer(rev, u->read_timeout);
 #endif
+/*
+调用ngx_handle_read_event方法将读事件再添加到epoll中，等待读事件的下次触发。
+ngx_http_upstream_process_header方法执行完毕。
 
+*/
             if (ngx_handle_read_event(c->read, 0) != NGX_OK) {
                 ngx_http_upstream_finalize_request(r, u,
                                                NGX_HTTP_INTERNAL_SERVER_ERROR);
@@ -2087,7 +2119,10 @@ ngx_http_upstream_process_header(ngx_http_request_t *r, ngx_http_upstream_t *u)
 
             return;
         }
-
+/*
+如果返回0（表示上游服务器主动关闭连接）或者返回NGX_ERROR，
+这时跳到第2步执行ngx_http_upstream_next方法，传递的参数是NGX_HTTP_UPSTREAM_FT_ERROR
+*/
         if (n == 0) {
             ngx_log_error(NGX_LOG_ERR, c->log, 0,
                           "upstream prematurely closed connection");
@@ -2105,6 +2140,9 @@ ngx_http_upstream_process_header(ngx_http_request_t *r, ngx_http_upstream_t *u)
 
         u->peer.cached = 0;
 #endif
+		/*
+		调用HTTP模块实现的process_header方法解析响应头部，检测其返回值
+		*/
 
         rc = u->process_header(r);
 
@@ -2153,17 +2191,41 @@ ngx_http_upstream_process_header(ngx_http_request_t *r, ngx_http_upstream_t *u)
         }
     }
 
+/*
+调用ngx_http_upstream_process_headers方法处理已经解析出的头部，
+该方法将会把已经解析出的头部设置到请求ngx_http_request_t结构体的headers_out成员中，
+这样在调用ngx_http_send_header方法发送响应包头给客户端时将会发送这些设置了的头部。
+*/
+
     if (ngx_http_upstream_process_headers(r, u) != NGX_OK) {
         return;
     }
-
+/*
+接下来检查是否需要转发响应，ngx_http_re-quest_t结构体中的subrequest_in_memory标志位为1时表示不需要转发响应,
+subrequest_in_memory为0时表示需要转发响应到客户端，
+*/
     if (!r->subrequest_in_memory) {
+		/*
+		调用ngx_http_upstream_send_response方法开始转发响应给客户端，同时ngx_http_upstream_process_header方法执行完毕。
+
+		ngx_http_upstream_send_response方法将会根据ngx_http_upstream_conf_t配置结构体中的buffering
+		标志位来决定是否打开缓存来处理响应，也就是说，buffering为0时通常会默认下游网速更快，
+		这时不需要缓存响应（在12.7节中将会介绍这一流程）。如果buffering为1，则表示上游网速更快，
+		这时需要用大量内存、磁盘文件来缓存来自上游的响应（在12.8节中会介绍这一流程）。
+		*/
         ngx_http_upstream_send_response(r, u);
         return;
     }
 
     /* subrequest content in memory */
 
+/*
+首先检查HTTP模块是否实现了用于处理包体的input_filter方法，如果没有实现，
+则使用upstream定义的默认方法ngx_http_upstream_non_buffered_filter代替
+input_filter，其中input_filter_ctx将会被设置为ngx_http_request_t结构体的指针。
+如果用户已经实现了input_filter方法，则表示用户希望自己处理包体（如ngx_http_memcached_module模块），
+这时首先调用input_filter_init方法为处理包体做初始化工作。
+*/
     if (u->input_filter == NULL) {
         u->input_filter_init = ngx_http_upstream_non_buffered_filter_init;
         u->input_filter = ngx_http_upstream_non_buffered_filter;
@@ -2178,6 +2240,10 @@ ngx_http_upstream_process_header(ngx_http_request_t *r, ngx_http_upstream_t *u)
     n = u->buffer.last - u->buffer.pos;
 
     if (n) {
+	/*
+	在上面调用玩process_header方法后，如果解析完包头后缓冲区中还有多余的字符，
+	则表示还接收到了包体，这时将调用input_filter方法第一次处理接收到的包体。
+	*/
         u->buffer.last = u->buffer.pos;
 
         u->state->response_length += n;
@@ -2192,9 +2258,21 @@ ngx_http_upstream_process_header(ngx_http_request_t *r, ngx_http_upstream_t *u)
         ngx_http_upstream_finalize_request(r, u, 0);
         return;
     }
+/*
+设置upstream的read_event_handler为ngx_http_upstream_process_body_in_memory方法，
+这也表示再有上游服务器发来响应包体，将由该方法来处理（参见12.6节）。
 
+可以看出，当不需要转发响应时，ngx_http_upstream_process_body_in_memory
+方法将作为读取上游服务器包体的回调方法。什么时候无须转发包体呢？
+在subrequest_in_memory标志位为1时，实际上，这也意味着当前请求是个subrequest子请求。
+也就是说，在通常情况下，如果来自客户端的请求直接使用upstream机制，
+那都需要将上游服务器的响应直接转发给客户端，而如果是客户端请求派生出的子请求，则不需要转发上游的响应。
+因此，当我们开发HTTP模块实现某个功能时，若需要访问上游服务器获取一些数据，那么可开发两个HTTP模块，
+第一个HTTP模块用于处理客户端请求，当它需要访问上游服务器时就派生出子请求访问，第二个HTTP模块则专用于访问上游服务器，
+在子请求解析完上游服务器的响应后，再激活父请求处理客户端要求的业务。
+*/
     u->read_event_handler = ngx_http_upstream_process_body_in_memory;
-
+//调用ngx_http_upstream_pro-cess_body_in_memory方法开始处理包体
     ngx_http_upstream_process_body_in_memory(r, u);
 }
 
