@@ -83,6 +83,7 @@ ngx_atomic_t  *ngx_stat_waiting = &ngx_stat_waiting0;
 static ngx_command_t  ngx_events_commands[] = {
 
     { ngx_string("events"),
+	/*是NGX_MAIN_CONF但不是NGX_CONF_DIRECT*/
       NGX_MAIN_CONF|NGX_CONF_BLOCK|NGX_CONF_NOARGS,
       ngx_events_block,
       0,

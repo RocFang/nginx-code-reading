@@ -164,7 +164,7 @@ access_log访问日志
 } ngx_http_phases;
 
 typedef struct ngx_http_phase_handler_s  ngx_http_phase_handler_t;
-
+/*一个HTTP处理阶段中的checker检查方法，仅可以由HTTP框架实现，以此控制HTTP请求的处理流程*/
 typedef ngx_int_t (*ngx_http_phase_handler_pt)(ngx_http_request_t *r,
     ngx_http_phase_handler_t *ph);
 
@@ -214,6 +214,9 @@ typedef struct {
 
 
 typedef struct {
+	/*
+	存储指针的动态数组，每个指针指向ngx_http_core_srv_conf_t结构体的地址，也就是其成员类型为ngx_http_core_srv_conf_t**
+	*/
     ngx_array_t                servers;         /* ngx_http_core_srv_conf_t */
 
 //http框架初始化后各个http模块构造的处理方法将组成phase_engine
@@ -233,7 +236,7 @@ typedef struct {
     ngx_uint_t                 variables_hash_bucket_size;
 
     ngx_hash_keys_arrays_t    *variables_keys;
-
+	//存放着该http{}配置块下监听的所有ngx_http_conf_port_t端口
     ngx_array_t               *ports;
 
     ngx_uint_t                 try_files;       /* unsigned  try_files:1 */
@@ -258,8 +261,10 @@ typedef struct {
     ngx_array_t                 server_names;
 
     /* server ctx */
+	//指向当前server块所属的ngx_http_conf_ctx_t结构体
     ngx_http_conf_ctx_t        *ctx;
-
+	/*当前server块的虚拟主机名，如果存在的话，则会与HTTP请求中的Host头部做匹配，
+	匹配上后再由当前ngx_http_core_srv_conf_t处理请求*/
     ngx_str_t                   server_name;
 
     size_t                      connection_pool_size;
@@ -341,28 +346,43 @@ typedef struct {
     ngx_uint_t                 naddrs;
 } ngx_http_port_t;
 
-
+/*
+每监听一个TCP端口，都将使用一个独立的ngx_http_conf_port_t结构体来表示
+*/
 typedef struct {
+	//socket地址家族
     ngx_int_t                  family;
+	//监听端口
     in_port_t                  port;
+	//监听的端口下对应着的所有ngx_http_conf_addr_t地址
     ngx_array_t                addrs;     /* array of ngx_http_conf_addr_t */
 } ngx_http_conf_port_t;
 
 
 typedef struct {
+	//监听套接字的各种属性
     ngx_http_listen_opt_t      opt;
-
+	/*以下3个散列表用于加速寻找到对应监听端口上的新连接，
+	确定到底使用哪个server{}虚拟主机下的配置来处理它。所以，散列表的值就是ngx_http_core_srv_conf_t结构体的地址*/
+	//完全匹配server name的散列表
     ngx_hash_t                 hash;
+	//通配符前置的散列表
     ngx_hash_wildcard_t       *wc_head;
+	//通配符后置的散列表
     ngx_hash_wildcard_t       *wc_tail;
 
 #if (NGX_PCRE)
+	//下面的regex数组中元素的个数
     ngx_uint_t                 nregex;
+	/*regex指向静态数组，其数组成员就是ngx_http_server_name_t结构体，表示正则表达式及其匹配
+	的server{}虚拟主机*/
     ngx_http_server_name_t    *regex;
 #endif
 
     /* the default server configuration for this address:port */
+	//该监听端口下对应的默认server{}虚拟主机
     ngx_http_core_srv_conf_t  *default_server;
+	//servers动态数组中的成员将指向ngx_http_core_srv_conf_t结构体
     ngx_array_t                servers;  /* array of ngx_http_core_srv_conf_t */
 } ngx_http_conf_addr_t;
 
@@ -386,6 +406,7 @@ typedef struct {
 
 
 struct ngx_http_core_loc_conf_s {
+	//location的名称，即nginx.conf中location后的表达式
     ngx_str_t     name;          /* location name */
 
 #if (NGX_PCRE)
@@ -413,6 +434,9 @@ struct ngx_http_core_loc_conf_s {
 #endif
 
     /* pointer to the modules' loc_conf */
+	/*指向所属location块内ngx_http_conf_ctx_t结构体中的loc_conf指针数组，
+	它保存着当前location块内所有HTTP模块create_loc_conf方法产生的结构体指针*/
+
     void        **loc_conf;
 
     uint32_t      limit_except;
@@ -518,7 +542,8 @@ struct ngx_http_core_loc_conf_s {
 
     ngx_uint_t    types_hash_max_size;
     ngx_uint_t    types_hash_bucket_size;
-
+	/*将同一个server块内多个表达location块的ngx_http_core_loc_conf_t结构体以双向链表方式组织起来，
+	该locations指针将指向ngx_http_location_queue_t结构体*/
     ngx_queue_t  *locations;
 
 #if 0
@@ -528,9 +553,13 @@ struct ngx_http_core_loc_conf_s {
 
 
 typedef struct {
+	/*queue将作为ngx_queue_t双向链表容器，从而将ngx_http_location_queue_t结构体连接起来*/
     ngx_queue_t                      queue;
+	/*如果location中的字符串可以精确匹配（包括正则表达式），exact将指向对应的ngx_http_core_loc_conf_t结构体，否则值为NULL*/
     ngx_http_core_loc_conf_t        *exact;
+	/*如果location中的字符串无法精确匹配（包括了自定义的通配符），inclusive将指向对应的ngx_http_core_loc_conf_t结构体，否则值为NULL*/
     ngx_http_core_loc_conf_t        *inclusive;
+	//指向location的名称
     ngx_str_t                       *name;
     u_char                          *file_name;
     ngx_uint_t                       line;
@@ -539,15 +568,23 @@ typedef struct {
 
 
 struct ngx_http_location_tree_node_s {
+	//左子树
     ngx_http_location_tree_node_t   *left;
+	//右子树
     ngx_http_location_tree_node_t   *right;
+	//无法完全匹配的location组成的树
     ngx_http_location_tree_node_t   *tree;
-
+	/*如果location对应的URI匹配字符串属于能够完全匹配的类型，
+	则exact指向其对应的ngx_http_core_loc_conf_t结构体，否则为NULL空指针*/
     ngx_http_core_loc_conf_t        *exact;
+	/*如果location对应的URI匹配字符串属于无法完全匹配的类型，
+	则inclusive指向其对应的ngx_http_core_loc_conf_t结构体，否则为NULL空指针*/
     ngx_http_core_loc_conf_t        *inclusive;
-
+	//自动重定向标志
     u_char                           auto_redirect;
+	//name字符串的实际长度
     u_char                           len;
+	//name指向location对应的URI匹配表达式
     u_char                           name[1];
 };
 

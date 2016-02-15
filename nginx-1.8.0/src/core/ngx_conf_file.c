@@ -375,9 +375,22 @@ ngx_conf_handler(ngx_conf_t *cf, ngx_int_t last)
             conf = NULL;
 
             if (cmd->type & NGX_DIRECT_CONF) {
+/*
+NGX_DIRECT_CONF类型的指令，一定也是NGX_MAIN_CONF类型的。
+*/
                 conf = ((void **) cf->ctx)[ngx_modules[i]->index];
 
             } else if (cmd->type & NGX_MAIN_CONF) {
+/*
+是NGX_MAIN_CONF但不是NGX_DIRECT_CONF的指令主要如下:
+events
+http
+error_log
+mail
+imap
+rtmp
+可见，大部分均为NGX_CONF_BLOCK类型的指令，但error_log除外
+*/
                 conf = &(((void **) cf->ctx)[ngx_modules[i]->index]);
 
             } else if (cf->ctx) {

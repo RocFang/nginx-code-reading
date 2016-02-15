@@ -13,12 +13,12 @@
 typedef struct {
     /* the round robin data must be first */
     ngx_http_upstream_rr_peer_data_t   rrp;
-
+	//hash种子值
     ngx_uint_t                         hash;
-
+	//IP地址  
     u_char                             addrlen;
     u_char                            *addr;
-
+	//尝试连接的次数
     u_char                             tries;
 
     ngx_event_get_peer_pt              get_rr_peer;
@@ -121,6 +121,7 @@ ngx_http_upstream_init_ip_hash_peer(ngx_http_request_t *r,
     case AF_INET:
         sin = (struct sockaddr_in *) r->connection->sockaddr;
         iphp->addr = (u_char *) &sin->sin_addr.s_addr;
+		//转储IPv4只用到了前3个字节，因为在后面的hash计算过程中只用到了3个字节  
         iphp->addrlen = 3;
         break;
 
@@ -137,8 +138,11 @@ ngx_http_upstream_init_ip_hash_peer(ngx_http_request_t *r,
         iphp->addrlen = 3;
     }
 
+	//初始化hash种子
     iphp->hash = 89;
+	//初始化尝试失败次数 
     iphp->tries = 0;
+	//做RR选择的函数
     iphp->get_rr_peer = ngx_http_upstream_get_round_robin_peer;
 
     return NGX_OK;
@@ -160,7 +164,7 @@ ngx_http_upstream_get_ip_hash_peer(ngx_peer_connection_t *pc, void *data)
                    "get ip hash peer, try: %ui", pc->tries);
 
     /* TODO: cached */
-
+	//如果失败次数太多，或者只有一个后端服务，那么直接做RR选择
     if (iphp->tries > 20 || iphp->rrp.peers->single) {
         return iphp->get_rr_peer(pc, &iphp->rrp);
     }
@@ -173,11 +177,12 @@ ngx_http_upstream_get_ip_hash_peer(ngx_peer_connection_t *pc, void *data)
     hash = iphp->hash;
 
     for ( ;; ) {
-
+		//计算IP的hash值  
         for (i = 0; i < (ngx_uint_t) iphp->addrlen; i++) {
+			//113质数，可以让哈希结果更散列 
             hash = (hash * 113 + iphp->addr[i]) % 6271;
         }
-
+		//根据哈希结果得到被选中的后端服务器
         if (!iphp->rrp.peers->weighted) {
             p = hash % iphp->rrp.peers->number;
 
@@ -193,7 +198,7 @@ ngx_http_upstream_get_ip_hash_peer(ngx_peer_connection_t *pc, void *data)
 
             p = i;
         }
-
+		//服务器对应在位图中的位置计算
         n = p / (8 * sizeof(uintptr_t));
         m = (uintptr_t) 1 << p % (8 * sizeof(uintptr_t));
 
@@ -203,15 +208,15 @@ ngx_http_upstream_get_ip_hash_peer(ngx_peer_connection_t *pc, void *data)
 
         ngx_log_debug2(NGX_LOG_DEBUG_HTTP, pc->log, 0,
                        "get ip hash peer, hash: %ui %04XA", p, m);
-
+		//获取服务器  
         peer = &iphp->rrp.peers->peer[p];
 
         /* ngx_lock_mutex(iphp->rrp.peers->mutex); */
-
+		//服务器未挂掉	
         if (peer->down) {
             goto next_try;
         }
-
+		//失败次数已达上限 
         if (peer->max_fails
             && peer->fails >= peer->max_fails
             && now - peer->checked <= peer->fail_timeout)
@@ -222,22 +227,22 @@ ngx_http_upstream_get_ip_hash_peer(ngx_peer_connection_t *pc, void *data)
         break;
 
     next_try:
-
+		//更改位图标记值  
         iphp->rrp.tried[n] |= m;
 
         /* ngx_unlock_mutex(iphp->rrp.peers->mutex); */
-
+		//在连接一个远端服务器时，当前连接异常失败后可以尝试的次数
         pc->tries--;
 
     next:
-
+		//已经尝试的次数超过阈值，采用RR轮询
         if (++iphp->tries > 20) {
             return iphp->get_rr_peer(pc, &iphp->rrp);
         }
     }
-
+	//当前服务索引	
     iphp->rrp.current = p;
-
+	//服务器地址及名字保存
     pc->sockaddr = peer->sockaddr;
     pc->socklen = peer->socklen;
     pc->name = &peer->name;
@@ -247,8 +252,9 @@ ngx_http_upstream_get_ip_hash_peer(ngx_peer_connection_t *pc, void *data)
     }
 
     /* ngx_unlock_mutex(iphp->rrp.peers->mutex); */
-
+	//位图更新
     iphp->rrp.tried[n] |= m;
+	//保留种子，使下次get_ip_hash_peer的时候能够选到同一个peer上
     iphp->hash = hash;
 
     return NGX_OK;

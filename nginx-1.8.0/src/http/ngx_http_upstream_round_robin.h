@@ -42,10 +42,11 @@ typedef struct {
 typedef struct ngx_http_upstream_rr_peers_s  ngx_http_upstream_rr_peers_t;
 
 struct ngx_http_upstream_rr_peers_s {
+	//所有服务器地址总数 
     ngx_uint_t                      number;
-
+	//所有服务总权重
     ngx_uint_t                      total_weight;
-
+	//是否只有一个后端服务
     unsigned                        single:1;
     unsigned                        weighted:1;
 

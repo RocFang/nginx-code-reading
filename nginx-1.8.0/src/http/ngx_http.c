@@ -83,6 +83,7 @@ ngx_str_t  ngx_http_html_default_types[] = {
 static ngx_command_t  ngx_http_commands[] = {
 
     { ngx_string("http"),
+		/*是NGX_MAIN_CONF但不是NGX_CONF_DIRECT*/
       NGX_MAIN_CONF|NGX_CONF_BLOCK|NGX_CONF_NOARGS,
       ngx_http_block,
       0,
@@ -247,8 +248,9 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
      * init http{} main_conf's, merge the server{}s' srv_conf's
      * and its location{}s' loc_conf's
      */
-
+	//cmcf就是该http块下全局的ngx_http_core_main_conf_t结构体
     cmcf = ctx->main_conf[ngx_http_core_module.ctx_index];
+	/*cscfp指向保存所有ngx_http_core_srv_conf_t结构体指针的servers动态数组的第1个元素*/
     cscfp = cmcf->servers.elts;
 
     for (m = 0; ngx_modules[m]; m++) {
@@ -278,13 +280,26 @@ ngx_http_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     /* create location trees */
 
     for (s = 0; s < cmcf->servers.nelts; s++) {
-
+		/*clcf是server块下的ngx_http_core_loc_conf_t结构体，
+		10.2.3节曾经介绍过它的locations成员以双向链表关联着隶属于这个server块的所有location块
+		对应的ngx_http_core_loc_conf_t结构体*/
         clcf = cscfp[s]->ctx->loc_conf[ngx_http_core_module.ctx_index];
-
+		/*将ngx_http_core_loc_conf_t组成的双向链表按照location匹配字符串进行排序。注意：这个操作是递归进行的，如果某
+		个location块下还具有其他location，那么它的locations链表也会被排序*/
         if (ngx_http_init_locations(cf, cscfp[s], clcf) != NGX_OK) {
             return NGX_CONF_ERROR;
         }
+		/*
+		根据已经按照location字符串排序过的双向链表，快速地构建静态的二叉查找树。
+		与ngx_http_init_locations方法类似，这个操作也是递归进行的.注意，这里的二叉查找树并不是第7章中介绍过的红黑树，
+		不过，为什么不使用红黑树呢？因为location是由nginx.conf中读取到的，
+		它是静态不变的，不存在运行过程中在树中添加或者删除location的场景，
+		而且红黑树的查询效率也没有重新构造的静态的完全平衡二叉树高。这棵静态的二叉平衡查找树是
+		用ngx_http_location_tree_node_t结构体来表示的.
 
+		HTTP框架在ngx_http_core_module模块中定义了ngx_http_core_find_location方法，
+		用于从静态二叉查找树中快速检索到ngx_http_core_loc_conf_t结构体
+		*/
         if (ngx_http_init_static_location_trees(cf, clcf) != NGX_OK) {
             return NGX_CONF_ERROR;
         }
@@ -573,32 +588,36 @@ ngx_http_merge_servers(ngx_conf_t *cf, ngx_http_core_main_conf_t *cmcf,
     ngx_http_conf_ctx_t         *ctx, saved;
     ngx_http_core_loc_conf_t    *clcf;
     ngx_http_core_srv_conf_t   **cscfp;
-
+	/*从ngx_http_core_main_conf_t的servers动态数组中可以获取所有的ngx_http_core_srv_conf_t结构体*/
     cscfp = cmcf->servers.elts;
+	//注意，这个ctx是在http{}块下的全局ngx_http_conf_ctx_t结构体
     ctx = (ngx_http_conf_ctx_t *) cf->ctx;
     saved = *ctx;
     rv = NGX_CONF_OK;
-
+	//遍历所有的server块下对应的ngx_http_core_srv_conf_t结构体
     for (s = 0; s < cmcf->servers.nelts; s++) {
 
         /* merge the server{}s' srv_conf's */
-
+		/*srv_conf将指向所有的HTTP模块产生的server相关的srv级别配置结构体*/
         ctx->srv_conf = cscfp[s]->ctx->srv_conf;
-
+		//如果当前HTTP模块实现了merge_srv_conf，则再调用合并方法
         if (module->merge_srv_conf) {
+/*注意，在这里合并配置项时，saved.srv_conf[ctx_index]参数是当前HTTP模块在http{}
+块下由create_srv_conf方法创建的结构体，而cscfp[s]-＞ctx-＞srv_conf[ctx_index]参数则是在server{}
+块下由create_srv_conf方法创建的结构体*/
             rv = module->merge_srv_conf(cf, saved.srv_conf[ctx_index],
                                         cscfp[s]->ctx->srv_conf[ctx_index]);
             if (rv != NGX_CONF_OK) {
                 goto failed;
             }
         }
-
+		//如果当前HTTP模块实现了merge_loc_conf，则再调用合并方法
         if (module->merge_loc_conf) {
 
             /* merge the server{}'s loc_conf */
-
+			/*cscfp[s]-＞ctx-＞loc_conf这个动态数组中的成员都是由server{}块下所有HTTP模块的create_loc_conf方法创建的结构体指针*/
             ctx->loc_conf = cscfp[s]->ctx->loc_conf;
-
+			/*首先将http{}块下main级别与server{}块下srv级别的location相关的结构体合并*/
             rv = module->merge_loc_conf(cf, saved.loc_conf[ctx_index],
                                         cscfp[s]->ctx->loc_conf[ctx_index]);
             if (rv != NGX_CONF_OK) {
@@ -606,9 +625,10 @@ ngx_http_merge_servers(ngx_conf_t *cf, ngx_http_core_main_conf_t *cmcf,
             }
 
             /* merge the locations{}' loc_conf's */
-
+			/*clcf是server块下ngx_http_core_module模块使用create_loc_conf方法产生的ngx_http_core_loc_conf_t结构体，
+			在10.2.3节中曾经说过，它的locations成员将以双向链表的形式关联到所有当前server{}块下的location块*/
             clcf = cscfp[s]->ctx->loc_conf[ngx_http_core_module.ctx_index];
-
+			/*调用ngx_http_merge_locations方法，将server{}块与其所包含的location{}块下的结构体进行合并*/
             rv = ngx_http_merge_locations(cf, clcf->locations,
                                           cscfp[s]->ctx->loc_conf,
                                           module, ctx_index);
@@ -625,7 +645,11 @@ failed:
     return rv;
 }
 
-
+/*
+ngx_http_merge_locations方法负责合并location相关的配置项，上面已经将main级别与srv级别做过合并，
+接下来再次将srv级别与loc级别做合并。每个server块ngx_http_core_loc_conf_t中的locations双向链表会包含所属的全部location块，
+遍历它以合并srv、loc级别配置项
+*/
 static char *
 ngx_http_merge_locations(ngx_conf_t *cf, ngx_queue_t *locations,
     void **loc_conf, ngx_http_module_t *module, ngx_uint_t ctx_index)
@@ -635,29 +659,33 @@ ngx_http_merge_locations(ngx_conf_t *cf, ngx_queue_t *locations,
     ngx_http_conf_ctx_t        *ctx, saved;
     ngx_http_core_loc_conf_t   *clcf;
     ngx_http_location_queue_t  *lq;
-
+	/*如果locations链表为空，也就是说，当前server块下没有location块，则立刻返回*/
     if (locations == NULL) {
         return NGX_CONF_OK;
     }
 
     ctx = (ngx_http_conf_ctx_t *) cf->ctx;
     saved = *ctx;
-
+	//遍历locations双向链表
     for (q = ngx_queue_head(locations);
          q != ngx_queue_sentinel(locations);
          q = ngx_queue_next(q))
     {
         lq = (ngx_http_location_queue_t *) q;
-
+		/*在10.2.3节中曾经讲过，如果location后的匹配字符串不依靠Nginx自定义的通配符就可以完全匹配的话，
+		则exact指向当前location对应的ngx_http_core_loc_conf_t结构体，否则使用inclusive指向该结构体，
+		且exact的优先级高于inclusive*/
         clcf = lq->exact ? lq->exact : lq->inclusive;
+		/*clcf-＞loc_conf这个指针数组里保存着当前location下所有HTTP模块使用create_loc_conf方法生成的结构体的指针*/
         ctx->loc_conf = clcf->loc_conf;
-
+		//调用merge_loc_conf方法合并srv、loc级别配置项
         rv = module->merge_loc_conf(cf, loc_conf[ctx_index],
                                     clcf->loc_conf[ctx_index]);
         if (rv != NGX_CONF_OK) {
             return rv;
         }
-
+		/*注意，因为location{}中可以继续嵌套location{}配置块，所以是可以继续合并的。
+		在10.1节的例子中没有location嵌套，10.2.3节的例子是体现出嵌套关系的，可以对照着图10-5来理解*/
         rv = ngx_http_merge_locations(cf, clcf->locations, clcf->loc_conf,
                                       module, ctx_index);
         if (rv != NGX_CONF_OK) {
