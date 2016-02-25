@@ -222,6 +222,7 @@ ngx_rtmp_recv(ngx_event_t *rev)
         st = &s->in_streams[s->in_csid];
 
         /* allocate new buffer */
+		// 分配chain链
         if (st->in == NULL) {
             st->in = ngx_rtmp_alloc_in_buf(s);
             if (st->in == NULL) {
@@ -254,6 +255,7 @@ ngx_rtmp_recv(ngx_event_t *rev)
                 b->pos = b->last = b->start;
             }
 //ngx_unix_recv
+// 接收一个rtmp chunk
             n = c->recv(c, b->last, b->end - b->last);
 
             if (n == NGX_ERROR || n == 0) {
@@ -302,7 +304,7 @@ ngx_rtmp_recv(ngx_event_t *rev)
             p = b->pos;
 
             /* chunk basic header */
-			//获取stream id
+			//获取chunk stream id
             fmt  = (*p >> 6) & 0x03;
             csid = *p++ & 0x3f;
 
@@ -333,6 +335,7 @@ ngx_rtmp_recv(ngx_event_t *rev)
             }
 
             /* link orphan */
+			//默认未设置时为0
             if (s->in_csid == 0) {
 
                 /* unlink from stream #0 */
@@ -429,7 +432,7 @@ ngx_rtmp_recv(ngx_event_t *rev)
 
             /* header done */
             b->pos = p;
-
+            //检查message length大小是否超过限制
             if (h->mlen > cscf->max_message) {
                 ngx_log_error(NGX_LOG_INFO, c->log, 0,
                         "too big message: %uz", cscf->max_message);
@@ -462,7 +465,7 @@ ngx_rtmp_recv(ngx_event_t *rev)
             old_size = size - fsize;
             st->len = 0;
             h->timestamp += st->dtime;
-			//调用ngx_rtmp_amf_message_handler
+			//调用ngx_rtmp_amf_message_handler/ngx_rtmp_codec_av
             if (ngx_rtmp_receive_message(s, h, head) != NGX_OK) {
                 ngx_rtmp_finalize_session(s);
                 return;

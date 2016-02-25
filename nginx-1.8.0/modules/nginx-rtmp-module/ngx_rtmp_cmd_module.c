@@ -356,10 +356,17 @@ static ngx_int_t
 ngx_rtmp_cmd_create_stream(ngx_rtmp_session_t *s, ngx_rtmp_create_stream_t *v)
 {
     /* support one message stream per connection */
+	/*一条连接只支持一个message stream，但rtmp 协议本身并没有此限制*/
     static double               stream;
     static double               trans;
     ngx_rtmp_header_t           h;
 
+/* 见rtmp标准7.2.1.3 从服务器返回给客户端的信息,主要包括:
+1. command name
+2. transaction id
+3. command object
+4. stream id
+*/
     static ngx_rtmp_amf_elt_t  out_elts[] = {
 
         { NGX_RTMP_AMF_STRING,
@@ -378,8 +385,9 @@ ngx_rtmp_cmd_create_stream(ngx_rtmp_session_t *s, ngx_rtmp_create_stream_t *v)
           ngx_null_string,
           &stream, sizeof(stream) },
     };
-
+    /* transaction id 为从客户端接收到的*/
     trans = v->trans;
+	/* stream id 为1*/
     stream = NGX_RTMP_MSID;
 
     ngx_memzero(&h, sizeof(h));
@@ -509,6 +517,7 @@ ngx_rtmp_cmd_publish_init(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
                   "publish: name='%s' args='%s' type=%s silent=%d",
                   v.name, v.args, v.type, v.silent);
 
+    // ready to call ngx_rtmp_dash_publish.
     return ngx_rtmp_publish(s, &v);
 }
 

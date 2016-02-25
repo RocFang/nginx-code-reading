@@ -509,12 +509,15 @@ ngx_int_t ngx_rtmp_amf_shared_object_handler(ngx_rtmp_session_t *s,
 #define ngx_rtmp_ref(b)                     \
     *((NGX_RTMP_REFCOUNT_TYPE*)(b) - 1)
 
+// ngx_rtmp_ref_set仅在ngx_rtmp_alloc_shared_buf分配新的共享缓存区时才会被调用
 #define ngx_rtmp_ref_set(b, v)              \
     ngx_rtmp_ref(b) = v
 
+// 在ngx_rtmp_acquire_shared_chain中使用，ngx_rtmp_acquire_shared_chain在ngx_rtmp_send_message中使用
 #define ngx_rtmp_ref_get(b)                 \
     ++ngx_rtmp_ref(b)
 
+//在ngx_rtmp_free_shared_chain中使用
 #define ngx_rtmp_ref_put(b)                 \
     --ngx_rtmp_ref(b)
 

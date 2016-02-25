@@ -216,16 +216,38 @@ ngx_rtmp_codec_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         return NGX_OK;
     }
 
+	/* 按照flv文件格式解析audiotagheader或者videotagheader*/
     fmt =  in->buf->pos[0];
     if (h->type == NGX_RTMP_MSG_AUDIO) {
-        ctx->audio_codec_id = (fmt & 0xf0) >> 4;
-        ctx->audio_channels = (fmt & 0x01) + 1;
-        ctx->sample_size = (fmt & 0x02) ? 2 : 1;
+		/*audio_codec_id对应flv格式里的SoundFormat,取值为:
+		enum {
 
+    NGX_RTMP_AUDIO_UNCOMPRESSED     = 16,
+    NGX_RTMP_AUDIO_ADPCM            = 1,
+    NGX_RTMP_AUDIO_MP3              = 2,
+    NGX_RTMP_AUDIO_LINEAR_LE        = 3,
+    NGX_RTMP_AUDIO_NELLY16          = 4,
+    NGX_RTMP_AUDIO_NELLY8           = 5,
+    NGX_RTMP_AUDIO_NELLY            = 6,
+    NGX_RTMP_AUDIO_G711A            = 7,
+    NGX_RTMP_AUDIO_G711U            = 8,
+    NGX_RTMP_AUDIO_AAC              = 10,
+    NGX_RTMP_AUDIO_SPEEX            = 11,
+    NGX_RTMP_AUDIO_MP3_8            = 14,
+    NGX_RTMP_AUDIO_DEVSPEC          = 15,
+};*/
+        ctx->audio_codec_id = (fmt & 0xf0) >> 4;
+		// audio_channel对应flv音频tag头里的SoundType的值+1,即1代表单声道，2代表立体声
+		
+        ctx->audio_channels = (fmt & 0x01) + 1;
+		// 处理flv音频tag头里的SoundSize,0代表每个音频帧大小为8bit，1代表每个音频帧大小为16bit,这里sample_size将其转换为字节数。
+        ctx->sample_size = (fmt & 0x02) ? 2 : 1;
+        // 获取SoundRate
         if (ctx->sample_rate == 0) {
             ctx->sample_rate = sample_rates[(fmt & 0x0c) >> 2];
         }
     } else {
+    //video frame type
         ctx->video_codec_id = (fmt & 0x0f);
     }
 
@@ -242,6 +264,7 @@ ngx_rtmp_codec_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     cscf = ngx_rtmp_get_module_srv_conf(s, ngx_rtmp_core_module);
     header = NULL;
 
+    
     if (h->type == NGX_RTMP_MSG_AUDIO) {
         if (ctx->audio_codec_id == NGX_RTMP_AUDIO_AAC) {
             header = &ctx->aac_header;
@@ -373,6 +396,7 @@ ngx_rtmp_codec_parse_avc_header(ngx_rtmp_session_t *s, ngx_chain_t *in)
 
     ngx_rtmp_bit_read(&br, 48);
 
+    //avc格式成员：AVCDecoderConfigurationRecord
     ctx->avc_profile = (ngx_uint_t) ngx_rtmp_bit_read_8(&br);
     ctx->avc_compat = (ngx_uint_t) ngx_rtmp_bit_read_8(&br);
     ctx->avc_level = (ngx_uint_t) ngx_rtmp_bit_read_8(&br);

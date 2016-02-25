@@ -482,7 +482,12 @@ next:
     return next_stream_eof(s, v);
 }
 
+/*
+publisher:
+1. 发布者
+0. 订阅者
 
+*/
 static void
 ngx_rtmp_live_join(ngx_rtmp_session_t *s, u_char *name, unsigned publisher)
 {
@@ -513,7 +518,13 @@ ngx_rtmp_live_join(ngx_rtmp_session_t *s, u_char *name, unsigned publisher)
 
     ngx_log_debug1(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
                    "live: join '%s'", name);
+	/*
+	publisher 为1时，表明当前身份为发布者
+	publisher 为0时，表明当前身份为订阅者
+	*/
 
+    //创建或获取一个空闲的ngx_rtmp_live_stream_t的结构体
+    //lacf->idle_streams是由idle_streams指令配置的，默认为on，即为1
     stream = ngx_rtmp_live_get_stream(s, name, publisher || lacf->idle_streams);
 
     if (stream == NULL ||
@@ -550,6 +561,7 @@ ngx_rtmp_live_join(ngx_rtmp_session_t *s, u_char *name, unsigned publisher)
 
     (*stream)->ctx = ctx;
 
+// buflen 由buffer指令配置，默认为0，单位为毫秒
     if (lacf->buflen) {
         s->out_buffer = 1;
     }
@@ -589,7 +601,10 @@ ngx_rtmp_live_close_stream(ngx_rtmp_session_t *s, ngx_rtmp_close_stream_t *v)
 
     ngx_log_debug1(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
                    "live: leave '%s'", ctx->stream->name);
-
+/*
+ctx->stream->publishing 为1表示该流当前存在发布者
+ctx->publishing为1表示本session的主体是发布者
+*/
     if (ctx->stream->publishing && ctx->publishing) {
         ctx->stream->publishing = 0;
     }
@@ -601,6 +616,9 @@ ngx_rtmp_live_close_stream(ngx_rtmp_session_t *s, ngx_rtmp_close_stream_t *v)
         }
     }
 
+/*
+ctx->publishing 为1，表示本session主体为发布者
+*/
     if (ctx->publishing || ctx->stream->active) {
         ngx_rtmp_live_stop(s);
     }
@@ -609,6 +627,7 @@ ngx_rtmp_live_close_stream(ngx_rtmp_session_t *s, ngx_rtmp_close_stream_t *v)
         ngx_rtmp_send_status(s, "NetStream.Unpublish.Success",
                              "status", "Stop publishing");
         if (!lacf->idle_streams) {
+			// 如果idle_streams配置为off,则发布者关闭连接后，nginx-rtmp会主动断开与所有订阅者的连接
             for (pctx = ctx->stream->ctx; pctx; pctx = pctx->next) {
                 if (pctx->publishing == 0) {
                     ss = pctx->session;
@@ -760,12 +779,26 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     meta = NULL;
     meta_version = 0;
     mandatory = 0;
-
+/*
+视频framtype:
+1. key fram 关键帧
+2. inter frame 非关键帧
+3. disponsable inter frame
+4. generated key frame
+5. video info/command frame
+*/
     prio = (h->type == NGX_RTMP_MSG_VIDEO ?
             ngx_rtmp_get_video_frame_type(in) : 0);
 
     cscf = ngx_rtmp_get_module_srv_conf(s, ngx_rtmp_core_module);
 
+/*
+interleave 指令控制 interleave 模式的开关。当打开 interleave 模式时，
+视频和音频数据在同一个 RTMP chunk stream 中传输。当关闭时，在两个不同 的 RTMP chunk stream 中传输，
+其中，音频数据的 chunk stream id 为6(NGX_RTMP_CSID_AUDIO),视频数据的 chunk stream id 为7（NGX_RTMP_CSID_VIDEO）。
+默认关闭，即音视频数据在不同的 chunk stream 中传输。
+
+*/
     csidx = !(lacf->interleave || h->type == NGX_RTMP_MSG_VIDEO);
 
     cs  = &ctx->cs[csidx];
@@ -846,8 +879,10 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     }
 
     /* broadcast to all subscribers */
+	/* 发布者的ctx->stream->ctx,指向最后加入的订阅者的ctx*/
 
     for (pctx = ctx->stream->ctx; pctx; pctx = pctx->next) {
+		// pctx==ctx表示为发布者
         if (pctx == ctx || pctx->paused) {
             continue;
         }
@@ -886,6 +921,12 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
                 continue;
             }
 
+/*
+如果 wait_video 开关打开之后，在第一个视频帧发送之前，不会向订阅者发送音频帧。
+默认关闭。可以和 wait_key 指令配合使用，使得订阅者接收的音视频数据以一个视频关键帧开始。
+但这种做法通常会增加连接延时，这个问题可以通过在编码侧调整视频关键帧间隙大小来解决。
+
+*/
             if (lacf->wait_video && h->type == NGX_RTMP_MSG_AUDIO &&
                 !pctx->cs[0].active)
             {
@@ -1054,6 +1095,7 @@ ngx_rtmp_live_publish(ngx_rtmp_session_t *s, ngx_rtmp_publish_t *v)
                    v->name, v->type);
 
     /* join stream as publisher */
+	/* 作为发布者加入到该流中*/
 
     ngx_rtmp_live_join(s, v->name, 1);
 
@@ -1063,7 +1105,7 @@ ngx_rtmp_live_publish(ngx_rtmp_session_t *s, ngx_rtmp_publish_t *v)
     }
 
     ctx->silent = v->silent;
-
+    // 一般在relay的时候，silent为1
     if (!ctx->silent) {
         ngx_rtmp_send_status(s, "NetStream.Publish.Start",
                              "status", "Start publishing");

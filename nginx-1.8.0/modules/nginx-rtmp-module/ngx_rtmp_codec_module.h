@@ -69,6 +69,7 @@ typedef struct {
     ngx_uint_t                  avc_ref_frames;
     ngx_uint_t                  sample_rate;    /* 5512, 11025, 22050, 44100 */
     ngx_uint_t                  sample_size;    /* 1=8bit, 2=16bit */
+	// audio_channel对应flv音频tag头里的SoundType的值+1,即1代表单声道，2代表立体声
     ngx_uint_t                  audio_channels; /* 1, 2 */
     u_char                      profile[32];
     u_char                      level[32];

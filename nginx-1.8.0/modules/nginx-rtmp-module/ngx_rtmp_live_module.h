@@ -37,6 +37,7 @@ struct ngx_rtmp_live_ctx_s {
     ngx_uint_t                          meta_version;
     ngx_event_t                         idle_evt;
     unsigned                            active:1;
+	//publishing为1,则表示当前session的主体为发布者
     unsigned                            publishing:1;
     unsigned                            silent:1;
     unsigned                            paused:1;
@@ -53,6 +54,7 @@ struct ngx_rtmp_live_stream_s {
     ngx_rtmp_bandwidth_t                bw_out;
     ngx_msec_t                          epoch;
     unsigned                            active:1;
+	// publishing为1，则表示该流正在被推送
     unsigned                            publishing:1;
 };
 
