@@ -173,6 +173,7 @@ typedef struct {
 typedef struct {
     uint32_t                csid;       /* chunk stream id */
     uint32_t                timestamp;  /* timestamp (delta) */
+	//mlen表示从chunk header里的message header部分解析出的message length
     uint32_t                mlen;       /* message length */
     uint8_t                 type;       /* message type id */
     uint32_t                msid;       /* message stream id */
@@ -181,8 +182,12 @@ typedef struct {
 
 typedef struct {
     ngx_rtmp_header_t       hdr;
+	//dtime表示timestamp delta。对于一个chunk,当basic chunk header中的fmt为0时，
+	//basic chunk header后面的message header的前三个字节表示timestamp，当fmt为1和2时，则这三个字节表示timestamp delta.
     uint32_t                dtime;
     uint32_t                len;        /* current fragment length */
+	//ext为标志位，为1时表示当前chunk header里的message header中的时间戳用三位字节表示不够，在message header后面使用了额外的4字节
+	//来表示。为0时表示没有使用扩展时间戳。
     uint8_t                 ext;
     ngx_chain_t            *in;
 } ngx_rtmp_stream_t;

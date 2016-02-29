@@ -280,11 +280,12 @@ ngx_rtmp_codec_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     if (header == NULL) {
         return NGX_OK;
     }
-
+    // 注意，这里判断的是*header，而不是header，意思是判断ngx_rtmp_codec_ctx_t里的avc_header或者aac_header是否指向NULL。
     if (*header) {
         ngx_rtmp_free_shared_chain(cscf, *header);
     }
 
+    // 内存拷贝。让ngx_rtmp_codec_ctx_t里的avc_header或者aac_header指向一段按照shared buffer组织的链。链的内容是由in 链拷贝得到。
     *header = ngx_rtmp_append_shared_bufs(cscf, NULL, in);
 
     return NGX_OK;
