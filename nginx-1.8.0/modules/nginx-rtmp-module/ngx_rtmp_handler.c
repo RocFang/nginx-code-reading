@@ -777,8 +777,19 @@ ngx_rtmp_send_message(ngx_rtmp_session_t *s, ngx_chain_t *out,
 {
     ngx_uint_t                      nmsg;
 
+// s->out_queue为rtmp core配置中out_queue配置，默认为256.在ngx_rtmp_init_session中分配了out_queue个ngx_chain_t指针
     nmsg = (s->out_last - s->out_pos) % s->out_queue + 1;
 
+
+	/*
+	如果是视频内容，则priority由frametype决定:
+	视频framtype:
+	1. key fram 关键帧
+	2. inter frame 非关键帧
+	3. disponsable inter frame
+	4. generated key frame
+	5. video info/command frame
+	*/
     if (priority > 3) {
         priority = 3;
     }
@@ -793,14 +804,17 @@ ngx_rtmp_send_message(ngx_rtmp_session_t *s, ngx_chain_t *out,
     }
 
     s->out[s->out_last++] = out;
+	//取模是为了wrapp around
     s->out_last %= s->out_queue;
 
+    //增加shared buffer 中的ref引用计数
     ngx_rtmp_acquire_shared_chain(out);
 
     ngx_log_debug3(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
             "RTMP send nmsg=%ui, priority=%ui #%ui",
             nmsg, priority, s->out_last);
-
+    //如果live模块配置了buffer指令，则s->out_buffer为1，否则为0
+    //out_cork默认值为out_queue的八分之一，所以在out_queue采用默认设置即256时，out_cork为32.
     if (priority && s->out_buffer && nmsg < s->out_cork) {
         return NGX_OK;
     }

@@ -307,6 +307,10 @@ ngx_rtmp_live_set_status(ngx_rtmp_session_t *s, ngx_chain_t *control,
 
         /* publisher */
 
+        /* 配置指令drop_idle_publisher,本指令设置了一个超时时间，当发布者与服务器的连接处于 publish 模式下，
+        闲置的时间超过这个时间后，服务器会关闭该连接。该功能默认关闭。所谓闲置是指没有音视频数据传输，
+        所谓publish 模式,当发布者发送完 publish 指令后即为 publish 模式。
+        */
         if (lacf->idle_timeout) {
             e = &ctx->idle_evt;
 
@@ -324,8 +328,10 @@ ngx_rtmp_live_set_status(ngx_rtmp_session_t *s, ngx_chain_t *control,
 
         ctx->stream->active = active;
 
+        //遍历所有客户端
         for (pctx = ctx->stream->ctx; pctx; pctx = pctx->next) {
             if (pctx->publishing == 0) {
+				//如果当前客户端是订阅者
                 ngx_rtmp_live_set_status(pctx->session, control, status,
                                          nstatus, active);
             }
@@ -335,7 +341,7 @@ ngx_rtmp_live_set_status(ngx_rtmp_session_t *s, ngx_chain_t *control,
     }
 
     /* subscriber */
-
+    // 如果是订阅者，递归到此
     if (control && ngx_rtmp_send_message(s, control, 0) != NGX_OK) {
         ngx_rtmp_finalize_session(s);
         return;
@@ -372,7 +378,7 @@ ngx_rtmp_live_start(ngx_rtmp_session_t *s)
     cscf = ngx_rtmp_get_module_srv_conf(s, ngx_rtmp_core_module);
 
     lacf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_live_module);
-
+    //创建一个用户控制消息，event类型为stream begin
     control = ngx_rtmp_create_stream_begin(s, NGX_RTMP_MSID);
 
     nstatus = 0;
@@ -711,12 +717,14 @@ next:
     return next_pause(s, v);
 }
 
+//在次之前，已经执行过 ngx_rtmp_codec_av，ngx_rtmp_record_av
 static ngx_int_t
 ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
                  ngx_chain_t *in)
 {
     ngx_rtmp_live_ctx_t            *ctx, *pctx;
     ngx_rtmp_codec_ctx_t           *codec_ctx;
+	// apkt的意思是absolut packet,rpkt是relative packet
     ngx_chain_t                    *header, *coheader, *meta,
                                    *apkt, *aapkt, *acopkt, *rpkt;
     ngx_rtmp_core_srv_conf_t       *cscf;
@@ -732,7 +740,7 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     ngx_rtmp_live_chunk_stream_t   *cs;
 #ifdef NGX_DEBUG
     const char                     *type_s;
-
+    //type_s仅仅用在写日志中
     type_s = (h->type == NGX_RTMP_MSG_VIDEO ? "video" : "audio");
 #endif
 
@@ -749,7 +757,7 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     if (ctx == NULL || ctx->stream == NULL) {
         return NGX_OK;
     }
-
+    // ctx->publishing=1表示该客户端是推流者，否则为订阅者
     if (ctx->publishing == 0) {
         ngx_log_debug1(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
                        "live: %s from non-publisher", type_s);
@@ -760,6 +768,7 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         ngx_rtmp_live_start(s);
     }
 
+// timer_set表示该事件存在于定时器中
     if (ctx->idle_evt.timer_set) {
         ngx_add_timer(&ctx->idle_evt, lacf->idle_timeout);
     }

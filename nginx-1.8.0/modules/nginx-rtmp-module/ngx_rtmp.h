@@ -286,6 +286,7 @@ createStream, use the default communication channel.
     unsigned                out_buffer:1;
     size_t                  out_queue;
     size_t                  out_cork;
+	//柔性数组，指向out_queue个ngx_chain_t类型的指针
     ngx_chain_t            *out[0];
 } ngx_rtmp_session_t;
 
@@ -370,6 +371,7 @@ typedef struct ngx_rtmp_core_srv_conf_s {
     ngx_flag_t              play_time_fix;
     ngx_flag_t              publish_time_fix;
     ngx_flag_t              busy;
+	//在ngx_rtmp_init_session中会赋值为rtmp core模块配置中的out_queue,默认为256.
     size_t                  out_queue;
     size_t                  out_cork;
     ngx_msec_t              buflen;
@@ -636,6 +638,14 @@ ngx_int_t ngx_rtmp_send_sample_access(ngx_rtmp_session_t *s);
 #define NGX_RTMP_VIDEO_INTER_FRAME          2
 #define NGX_RTMP_VIDEO_DISPOSABLE_FRAME     3
 
+/*
+视频framtype:
+1. key fram 关键帧
+2. inter frame 非关键帧
+3. disponsable inter frame
+4. generated key frame
+5. video info/command frame
+*/
 
 static ngx_inline ngx_int_t
 ngx_rtmp_get_video_frame_type(ngx_chain_t *in)

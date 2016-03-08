@@ -15,6 +15,9 @@
 #include "ngx_rtmp_bandwidth.h"
 #include "ngx_rtmp_streams.h"
 
+/*
+在live开启的情况下，每个发布者和每个订阅者各自都对应一个ngx_rtmp_live_ctx_t。
+*/
 
 typedef struct ngx_rtmp_live_ctx_s ngx_rtmp_live_ctx_t;
 typedef struct ngx_rtmp_live_stream_s ngx_rtmp_live_stream_t;
@@ -29,8 +32,11 @@ typedef struct {
 
 
 struct ngx_rtmp_live_ctx_s {
+	// 指向对应的请求session,每一个请求，无论是发布者还是订阅者，都会对应一个session
     ngx_rtmp_session_t                 *session;
+	// 对于同一个stream，每一个用户，包括发布者和订阅者，其stream指针均指向同一个。
     ngx_rtmp_live_stream_t             *stream;
+	// 同一个流的每个用户，包括发布者和订阅者，其ctx结构会通过这个next指针串联成一个链表。链表的起始为最后一个订阅者ctx，终点为发布者ctx。
     ngx_rtmp_live_ctx_t                *next;
     ngx_uint_t                          ndropped;
     ngx_rtmp_live_chunk_stream_t        cs[2];
@@ -45,6 +51,7 @@ struct ngx_rtmp_live_ctx_s {
 
 
 struct ngx_rtmp_live_stream_s {
+	//流名
     u_char                              name[NGX_RTMP_MAX_NAME];
     ngx_rtmp_live_stream_t             *next;
     ngx_rtmp_live_ctx_t                *ctx;
