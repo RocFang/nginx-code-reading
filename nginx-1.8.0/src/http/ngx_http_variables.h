@@ -33,11 +33,20 @@ typedef ngx_int_t (*ngx_http_get_variable_pt) (ngx_http_request_t *r,
 
 
 struct ngx_http_variable_s {
+	// name就是字符串变量名，例如nginx.conf中常见的$remote_addr这样的字符串，
+	// 当然，$符号是不包括的
     ngx_str_t                     name;   /* must be first to build the hash */
+	// 如果需要变量最初赋值时就进行变量值的设置，那么可以实现set_handler方法。如果我们定义的
+    // 内部变量允许在nginx.conf中以set方式又重新设置其值，那么可以实现该方法（参考args参数，
+    // 它就是一个内部变量，同时也允许set方式在nginx.conf里重新设置其值），详见15.4节
     ngx_http_set_variable_pt      set_handler;
+    // 每次获取一个变量的值时，会先调用get_handler方法，所以Nginx的官方模块变量的解析大都
+    // 在此方法中完成
     ngx_http_get_variable_pt      get_handler;
+	// 这个整数是作为参数传递给get_handler、set_handler回调方法使用
     uintptr_t                     data;
     ngx_uint_t                    flags;
+    // 这个数字也就是变量值在请求中的缓存数组中的索引
     ngx_uint_t                    index;
 };
 

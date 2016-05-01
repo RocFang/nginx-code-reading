@@ -336,12 +336,12 @@ ngx_rtmp_live_set_status(ngx_rtmp_session_t *s, ngx_chain_t *control,
                                          nstatus, active);
             }
         }
-
+        // 如果是推流者，已退出
         return;
     }
 
     /* subscriber */
-    // 如果是订阅者，递归到此
+    // 如果是订阅者，往下执行
     if (control && ngx_rtmp_send_message(s, control, 0) != NGX_OK) {
         ngx_rtmp_finalize_session(s);
         return;
@@ -357,7 +357,7 @@ ngx_rtmp_live_set_status(ngx_rtmp_session_t *s, ngx_chain_t *control,
             }
         }
     }
-
+    // 下面设置的是每个订阅者的ctx，推流者不会进入此时的逻辑
     ctx->cs[0].active = 0;
     ctx->cs[0].dropped = 0;
 
@@ -567,7 +567,7 @@ ngx_rtmp_live_join(ngx_rtmp_session_t *s, u_char *name, unsigned publisher)
 
     (*stream)->ctx = ctx;
 
-// buflen 由buffer指令配置，默认为0，单位为毫秒
+// buflen 由buffer指令配置，默认为0，单位为毫秒  buffer
     if (lacf->buflen) {
         s->out_buffer = 1;
     }
@@ -615,6 +615,9 @@ ctx->publishing为1表示本session的主体是发布者
         ctx->stream->publishing = 0;
     }
 
+/*
+将当前客户端(无论是推流端还是播放器，从客户端链表中剔除
+*/
     for (cctx = &ctx->stream->ctx; *cctx; cctx = &(*cctx)->next) {
         if (*cctx == ctx) {
             *cctx = ctx->next;
@@ -730,6 +733,8 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     ngx_rtmp_core_srv_conf_t       *cscf;
     ngx_rtmp_live_app_conf_t       *lacf;
     ngx_rtmp_session_t             *ss;
+	/* ch代表当前头，lh代表上一个头，clh代表上一个互补的头，互补的意思是如果当前头是音频，则clh代表上一个视频头，如果当前头是视频，
+	则clh代表上一个音频头*/
     ngx_rtmp_header_t               ch, lh, clh;
     ngx_int_t                       rc, mandatory, dummy_audio;
     ngx_uint_t                      prio;
@@ -764,7 +769,11 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         return NGX_OK;
     }
 
+	//进入到下面逻辑的,ctx都是发布者
+
     if (!ctx->stream->active) {
+		//收到推流者推来的第一个音视频消息时，推流者的ctx->active和ctx->stream->active还为0，在ngx_rtmp_live_start中，会将其置于1
+		// 所以，第二个包推上来时，就不会进入该逻辑了
         ngx_rtmp_live_start(s);
     }
 
@@ -808,28 +817,49 @@ interleave 指令控制 interleave 模式的开关。当打开 interleave 模式时，
 默认关闭，即音视频数据在不同的 chunk stream 中传输。
 
 */
+
+/*
+csidx:
+如果没有开启interleave(默认即没有开启),并且收到的消息类型不是NGX_RTMP_MSG_VIDEO，则csidx为1.
+如果开启了interleave，或者收到的消息类型为NGX_RTMP_MSG_VIDEO，则csidx为0.
+
+也就是说，如果消息类型为NGX_RTMP_MSG_VIDEO，则使用cs[0]
+其他消息类型(NGX_RTMP_MSG_AUDIO)，则使用cs[1],
+但是如果开启了interleave,则无论是NGX_RTMP_MSG_VIDEO还是NGX_RTMP_MSG_AUDIO，均使用cs[0]
+
+在ngx_rtmp_live_join中，已经设置了cs[0]和cs[1]的csid成员，cs[0]中的csid为NGX_RTMP_CSID_VIDEO,即7.
+cs[1]中的csid为NGX_RTMP_CSID_AUDEO，即6
+*/
     csidx = !(lacf->interleave || h->type == NGX_RTMP_MSG_VIDEO);
 
     cs  = &ctx->cs[csidx];
 
     ngx_memzero(&ch, sizeof(ch));
 
+// ch的意思为current header
     ch.timestamp = h->timestamp;
     ch.msid = NGX_RTMP_MSID;
     ch.csid = cs->csid;
     ch.type = h->type;
-
+// lh的意思为last header
     lh = ch;
 
     if (cs->active) {
+		//第一个包推上来时，不进入此逻辑，后续同类型的包推上来，就会进入该逻辑，这样,lh中就保存了上一个同类型包的时间戳
+		//这里类型值指的是音频还是视频。如果开启了interleave，则不如此，会公用一个cs，则不区分类型，lh中保存上一个包的时间戳
         lh.timestamp = cs->timestamp;
     }
 
+// clh 的意思是上一个互补类型的头（所谓互补是指音、视频类型互补。如果当前头是音频头，则clh的意思是上一个视频头
+// 如果当前头是视频头，则clh的意思是上一个音频头
     clh = lh;
+	// 如果h->type为NGX_RTMP_MSG_AUDIO，则clh.type为NGX_RTMP_MSG_VIDEO
+	// 如果h->type为NGX_RTMP_MSG_VIDEO，则clh.type为NGX_RTMP_MSG_AUDIO
     clh.type = (h->type == NGX_RTMP_MSG_AUDIO ? NGX_RTMP_MSG_VIDEO :
                                                 NGX_RTMP_MSG_AUDIO);
 
     cs->active = 1;
+	// 发布者的cs->timestamp 初始化为收到的header头中的timestamp
     cs->timestamp = ch.timestamp;
 
     delta = ch.timestamp - lh.timestamp;
@@ -888,20 +918,22 @@ interleave 指令控制 interleave 模式的开关。当打开 interleave 模式时，
     }
 
     /* broadcast to all subscribers */
-	/* 发布者的ctx->stream->ctx,指向最后加入的订阅者的ctx*/
+	/* 发布者的ctx->stream->ctx,指向最后加入的订阅者的ctx，ctx链表的最后一个为发布者*/
 
     for (pctx = ctx->stream->ctx; pctx; pctx = pctx->next) {
 		// pctx==ctx表示为发布者
         if (pctx == ctx || pctx->paused) {
             continue;
         }
-
+        //ss为当前待处理的订阅者
         ss = pctx->session;
+		//cs为当前待处理的订阅者的cs
         cs = &pctx->cs[csidx];
 
         /* send metadata */
 
         if (meta && meta_version != pctx->meta_version) {
+			//每个播放器只有在接受第一个包时会被发送metadata
             ngx_log_debug0(NGX_LOG_DEBUG_RTMP, ss->connection->log, 0,
                            "live: meta");
 
@@ -911,7 +943,11 @@ interleave 指令控制 interleave 模式的开关。当打开 interleave 模式时，
         }
 
         /* sync stream */
-
+        /*
+        当一个播放器接收到第一个包时，此时其cs->active是0.后面会被设置为1.
+        关于sync:如果订阅者带宽不够，一些帧会被服务器丢弃，这将导致同步的问题，sync 指令针对该情况对音视频流进行同步操作。
+        如果时间戳的差异超过了 sync 指令配置的值，服务器会向订阅者发送一个绝对帧来解决该问题。该指令配置的默认值为 300ms.
+           */
         if (cs->active && (lacf->sync && cs->dropped > lacf->sync)) {
             ngx_log_debug2(NGX_LOG_DEBUG_RTMP, ss->connection->log, 0,
                            "live: sync %s dropped=%uD", type_s, cs->dropped);
@@ -921,10 +957,13 @@ interleave 指令控制 interleave 模式的开关。当打开 interleave 模式时，
         }
 
         /* absolute packet */
+		// 给一个具体的播放器的第一个消息时，cs->active为0，所以走下面if的路径，发送绝对包。
+		// 给该播放器发后续消息的时候，走else的路径，即发相对包。
 
         if (!cs->active) {
 
             if (mandatory) {
+				// 如果当前包是avc header或者aac header，则暂时不发，等跟首个音、视频包一起发
                 ngx_log_debug0(NGX_LOG_DEBUG_RTMP, ss->connection->log, 0,
                                "live: skipping header");
                 continue;

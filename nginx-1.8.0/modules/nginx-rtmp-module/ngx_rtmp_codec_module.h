@@ -58,15 +58,28 @@ typedef struct {
     ngx_uint_t                  video_codec_id;
     ngx_uint_t                  audio_data_rate;
     ngx_uint_t                  audio_codec_id;
+	//audioObjectType
     ngx_uint_t                  aac_profile;
+	//channelConfiguration
     ngx_uint_t                  aac_chan_conf;
     ngx_uint_t                  aac_sbr;
     ngx_uint_t                  aac_ps;
+	//AVCProfileIndication
     ngx_uint_t                  avc_profile;
+	//profile_compatibility
     ngx_uint_t                  avc_compat;
+	//AVCLevelIndication
     ngx_uint_t                  avc_level;
+	//lengthSizeMinusOne + 1.
+	/*
+	lengthSizeMinusOne indicates the length in bytes of the NALUnitLength field in an AVC video
+sample or AVC parameter set sample of the associated stream minus one. For example, a size of one
+byte is indicated with a value of 0. The value of this field shall be one of 0, 1, or 3 corresponding to a
+length encoded with 1, 2, or 4 bytes, respectively.
+	*/
     ngx_uint_t                  avc_nal_bytes;
     ngx_uint_t                  avc_ref_frames;
+	//samplingFrequency
     ngx_uint_t                  sample_rate;    /* 5512, 11025, 22050, 44100 */
     ngx_uint_t                  sample_size;    /* 1=8bit, 2=16bit */
 	// audio_channel对应flv音频tag头里的SoundType的值+1,即1代表单声道，2代表立体声

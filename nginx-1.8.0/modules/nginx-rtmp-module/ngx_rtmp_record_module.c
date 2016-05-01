@@ -705,7 +705,7 @@ ngx_rtmp_record_publish(ngx_rtmp_session_t *s, ngx_rtmp_publish_t *v)
     ngx_rtmp_record_app_conf_t     *racf;
     ngx_rtmp_record_ctx_t          *ctx;
     u_char                         *p;
-
+    // 在多进程的情况下，只有向其他进程auto_push的进程需要录制
     if (s->auto_pushed) {
         goto next;
     }

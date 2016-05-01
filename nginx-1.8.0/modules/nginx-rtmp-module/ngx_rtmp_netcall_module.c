@@ -267,7 +267,8 @@ ngx_rtmp_netcall_create(ngx_rtmp_session_t *s, ngx_rtmp_netcall_init_t *ci)
 
     cc->write->handler = ngx_rtmp_netcall_send;
     cc->read->handler = ngx_rtmp_netcall_recv;
-
+    //当传进来的ci->handler为NULL时，cs->detached为1，否则为0
+    //所以，ctx->cs是链表的首节点
     if (!cs->detached) {
         cs->next = ctx->cs;
         ctx->cs = cs;
@@ -462,9 +463,23 @@ ngx_rtmp_netcall_send(ngx_event_t *wev)
     }
 
     if (wev->timer_set) {
+		//标志位，为1时表示这个事件存在于定时器中
         ngx_del_timer(wev);
     }
 
+/*
+此处send_chain为ngx_writev_chain，见
+ngx_os_io_t ngx_os_io = {
+    ngx_unix_recv,
+    ngx_readv_chain,
+    ngx_udp_unix_recv,
+    ngx_unix_send,
+    ngx_writev_chain,
+    0
+};
+
+*/
+    // ready to call ngx_writev_chain
     cl = cc->send_chain(cc, cs->out, 0);
 
     if (cl == NGX_CHAIN_ERROR) {
@@ -509,6 +524,8 @@ ngx_rtmp_netcall_http_format_request(ngx_int_t method, ngx_str_t *host,
                                                 "\r\n";
 
     content_length = 0;
+
+	// 计算content_length
     for (al = body; al; al = al->next) {
         b = al->buf;
         content_length += (b->last - b->pos);
@@ -572,6 +589,7 @@ ngx_rtmp_netcall_http_format_session(ngx_rtmp_session_t *s, ngx_pool_t *pool)
     ngx_buf_t                      *b;
     ngx_str_t                      *addr_text;
 
+	//客户端字符串形式的ip地址
     addr_text = &s->connection->addr_text;
 
     cl = ngx_alloc_chain_link(pool);
@@ -632,6 +650,7 @@ ngx_rtmp_netcall_http_format_session(ngx_rtmp_session_t *s, ngx_pool_t *pool)
 }
 
 
+//目前没有使用
 ngx_chain_t *
 ngx_rtmp_netcall_http_skip_header(ngx_chain_t *in)
 {
@@ -679,6 +698,7 @@ ngx_rtmp_netcall_http_skip_header(ngx_chain_t *in)
 }
 
 
+//目前没有使用
 ngx_chain_t *
 ngx_rtmp_netcall_memcache_set(ngx_rtmp_session_t *s, ngx_pool_t *pool,
         ngx_str_t *key, ngx_str_t *value, ngx_uint_t flags, ngx_uint_t sec)

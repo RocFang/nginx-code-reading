@@ -36,7 +36,7 @@ ngx_rtmp_init_connection(ngx_connection_t *c)
 
     /* AF_INET only */
 /*
-关于这个servers成员，看ngx_rtmp_optimize_servers函数中的mports设置
+关于这个servers成员，看ngx_rtmp_optimize_servers函数中的mports设置.ngx_rtmp_port_t
 */
     port = c->listening->servers;
     unix_socket = 0;

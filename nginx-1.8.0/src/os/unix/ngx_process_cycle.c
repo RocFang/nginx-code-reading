@@ -27,25 +27,33 @@ static void ngx_cache_manager_process_cycle(ngx_cycle_t *cycle, void *data);
 static void ngx_cache_manager_process_handler(ngx_event_t *ev);
 static void ngx_cache_loader_process_handler(ngx_event_t *ev);
 
-
 ngx_uint_t    ngx_process;
 ngx_pid_t     ngx_pid;
 
+//对应信号SIGCHLD,有子进程意外结束，这时需要监控所有的子进程，也就是ngx_reap_children方法所做的工作
 sig_atomic_t  ngx_reap;
 sig_atomic_t  ngx_sigio;
 sig_atomic_t  ngx_sigalrm;
+//对应信号SIGTERM或SIGINT,强制关闭整个服务
 sig_atomic_t  ngx_terminate;
+//对应信号SIGQUIT，优雅的关闭整个服务
 sig_atomic_t  ngx_quit;
 sig_atomic_t  ngx_debug_quit;
 ngx_uint_t    ngx_exiting;
+//对应信号SIGHUP，重新配置服务对新配置项生效
 sig_atomic_t  ngx_reconfigure;
+//对应信号SIGUSR1，重新打开服务中的所有文件
 sig_atomic_t  ngx_reopen;
 
+//对应信号SIGUSR2, 平滑升级到新版本的nginx程序
 sig_atomic_t  ngx_change_binary;
 ngx_pid_t     ngx_new_binary;
 ngx_uint_t    ngx_inherited;
 ngx_uint_t    ngx_daemonized;
 
+/*
+对应信号SIGWINCH,所有子进程不再接受处理新的连接，实际相当于对所有的子进程发送QUIT信号
+*/
 sig_atomic_t  ngx_noaccept;
 ngx_uint_t    ngx_noaccepting;
 ngx_uint_t    ngx_restart;

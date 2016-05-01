@@ -478,7 +478,7 @@ ngx_http_output_filter方法后，out中还会保存待发送的HTTP包体，它是实现异步发送HTT
 如果access_code为0，则表示请求具备访问权限，反之则说明请求不具备访问权限
 */
     ngx_uint_t                        access_code;
-
+    // variables数组存储所有序列化了的变量值，数组下标即为索引号
     ngx_http_variable_value_t        *variables;
 
 #if (NGX_PCRE)

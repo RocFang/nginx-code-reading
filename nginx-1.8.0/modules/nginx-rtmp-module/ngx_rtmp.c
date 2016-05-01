@@ -86,6 +86,7 @@ ngx_rtmp_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     char                        *rv;
     ngx_uint_t                   i, m, mi, s;
     ngx_conf_t                   pcf;
+	//ngx_rtmp_conf_port_t类型的动态数组
     ngx_array_t                  ports;
     ngx_rtmp_listen_t           *listen;
     ngx_rtmp_module_t           *module;
@@ -580,7 +581,7 @@ found:
     return NGX_OK;
 }
 
-
+//ports是ngx_rtmp_conf_port_t类型的动态数组
 static char *
 ngx_rtmp_optimize_servers(ngx_conf_t *cf, ngx_array_t *ports)
 {
@@ -592,7 +593,7 @@ ngx_rtmp_optimize_servers(ngx_conf_t *cf, ngx_array_t *ports)
 
     port = ports->elts;
     for (p = 0; p < ports->nelts; p++) {
-
+        //对同一个端口下的不同地址进行排序
         ngx_sort(port[p].addrs.elts, (size_t) port[p].addrs.nelts,
                  sizeof(ngx_rtmp_conf_addr_t), ngx_rtmp_cmp_conf_addrs);
 

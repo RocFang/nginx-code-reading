@@ -317,7 +317,7 @@ ngx_rtmp_relay_free_peer(ngx_peer_connection_t *pc, void *data,
 typedef ngx_rtmp_relay_ctx_t * (* ngx_rtmp_relay_create_ctx_pt)
     (ngx_rtmp_session_t *s, ngx_str_t *name, ngx_rtmp_relay_target_t *target);
 
-
+//将src字符串复制到dst，dest的内存在pool中分配
 static ngx_int_t
 ngx_rtmp_relay_copy_str(ngx_pool_t *pool, ngx_str_t *dst, ngx_str_t *src)
 {
@@ -333,7 +333,10 @@ ngx_rtmp_relay_copy_str(ngx_pool_t *pool, ngx_str_t *dst, ngx_str_t *src)
     return NGX_OK;
 }
 
-
+/*调用者:
+ngx_rtmp_relay_static_pull_reconnect
+ngx_rtmp_relay_create_remote_ctx
+*/
 static ngx_rtmp_relay_ctx_t *
 ngx_rtmp_relay_create_connection(ngx_rtmp_conf_ctx_t *cctx, ngx_str_t* name,
         ngx_rtmp_relay_target_t *target)
@@ -375,8 +378,8 @@ ngx_rtmp_relay_create_connection(ngx_rtmp_conf_ctx_t *cctx, ngx_str_t* name,
         goto clear;
     }
 
-    rctx->tag = target->tag;
-    rctx->data = target->data;
+    rctx->tag = target->tag;//target->tag = &ngx_rtmp_relay_module;
+    rctx->data = target->data;//target->data = target;
 
 #define NGX_RTMP_RELAY_STR_COPY(to, from)                                     \
     if (ngx_rtmp_relay_copy_str(pool, &rctx->to, &target->from) != NGX_OK) {  \
@@ -395,7 +398,7 @@ ngx_rtmp_relay_create_connection(ngx_rtmp_conf_ctx_t *cctx, ngx_str_t* name,
     rctx->stop  = target->stop;
 
 #undef NGX_RTMP_RELAY_STR_COPY
-
+/*如果没有在pull语句后的键值对里指定app和play_path，则从url中解析得到*/
     if (rctx->app.len == 0 || rctx->play_path.len == 0) {
         /* parse uri */
         uri = &target->url.uri;
@@ -456,8 +459,8 @@ ngx_rtmp_relay_create_connection(ngx_rtmp_conf_ctx_t *cctx, ngx_str_t* name,
     /* copy log to keep shared log unchanged */
     rctx->log = *racf->log;
     pc->log = &rctx->log;
-    pc->get = ngx_rtmp_relay_get_peer;
-    pc->free = ngx_rtmp_relay_free_peer;
+    pc->get = ngx_rtmp_relay_get_peer;/*啥也不做*/
+    pc->free = ngx_rtmp_relay_free_peer;/*啥也不做*/
     pc->name = &addr->name;
     pc->socklen = addr->socklen;
     pc->sockaddr = (struct sockaddr *)ngx_palloc(pool, pc->socklen);
@@ -514,7 +517,10 @@ clear:
     return NULL;
 }
 
-
+/*调用者:
+ngx_rtmp_relay_pull时作为create_publish_ctx参数ngx_rtmp_relay_create调用
+ngx_rtmp_relay_push
+*/
 static ngx_rtmp_relay_ctx_t *
 ngx_rtmp_relay_create_remote_ctx(ngx_rtmp_session_t *s, ngx_str_t* name,
         ngx_rtmp_relay_target_t *target)
@@ -565,7 +571,11 @@ ngx_rtmp_relay_create_local_ctx(ngx_rtmp_session_t *s, ngx_str_t *name,
     return ctx;
 }
 
-
+/*
+核心函数，调用者:
+ngx_rtmp_relay_pull
+ngx_rtmp_relay_push
+*/
 static ngx_int_t
 ngx_rtmp_relay_create(ngx_rtmp_session_t *s, ngx_str_t *name,
         ngx_rtmp_relay_target_t *target,
@@ -588,6 +598,7 @@ ngx_rtmp_relay_create(ngx_rtmp_session_t *s, ngx_str_t *name,
     }
 
     hash = ngx_hash_key(name->data, name->len);
+	//在配置初始化的时候，将racf->nbuckets默认配置为了1024
     cctx = &racf->ctx[hash % racf->nbuckets];
     for (; *cctx; cctx = &(*cctx)->next) {
         if ((*cctx)->name.len == name->len
@@ -619,7 +630,11 @@ ngx_rtmp_relay_create(ngx_rtmp_session_t *s, ngx_str_t *name,
     return NGX_OK;
 }
 
-
+/*
+调用者:
+ngx_rtmp_notify_play_handle
+ngx_rtmp_relay_play
+*/
 ngx_int_t
 ngx_rtmp_relay_pull(ngx_rtmp_session_t *s, ngx_str_t *name,
         ngx_rtmp_relay_target_t *target)
@@ -633,7 +648,12 @@ ngx_rtmp_relay_pull(ngx_rtmp_session_t *s, ngx_str_t *name,
             ngx_rtmp_relay_create_local_ctx);
 }
 
-
+/*调用者:
+ngx_rtmp_auto_push_reconnect
+ngx_rtmp_notify_publish_handle
+ngx_rtmp_relay_push_reconnect
+ngx_rtmp_relay_publish
+*/
 ngx_int_t
 ngx_rtmp_relay_push(ngx_rtmp_session_t *s, ngx_str_t *name,
         ngx_rtmp_relay_target_t *target)
@@ -647,7 +667,7 @@ ngx_rtmp_relay_push(ngx_rtmp_session_t *s, ngx_str_t *name,
             ngx_rtmp_relay_create_remote_ctx);
 }
 
-
+//publish链中的一环，上一节点是ngx_rtmp_exec_publish
 static ngx_int_t
 ngx_rtmp_relay_publish(ngx_rtmp_session_t *s, ngx_rtmp_publish_t *v)
 {
@@ -700,10 +720,11 @@ ngx_rtmp_relay_publish(ngx_rtmp_session_t *s, ngx_rtmp_publish_t *v)
     }
 
 next:
+	// ready to call ngx_rtmp_live_publish
     return next_publish(s, v);
 }
 
-
+//play链中的一环，上一节点是ngx_rtmp_exec_play
 static ngx_int_t
 ngx_rtmp_relay_play(ngx_rtmp_session_t *s, ngx_rtmp_play_t *v)
 {
@@ -713,8 +734,10 @@ ngx_rtmp_relay_play(ngx_rtmp_session_t *s, ngx_rtmp_play_t *v)
     size_t                          n;
     ngx_rtmp_relay_ctx_t           *ctx;
 
+// ctx在ngx_rtmp_relay_create_connection和ngx_rtmp_relay_create_local_ctx中被set
     ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_relay_module);
     if (ctx && s->relay) {
+		// s->relay在ngx_rtmp_relay_create_connection中被置为1
         goto next;
     }
 
@@ -748,10 +771,11 @@ ngx_rtmp_relay_play(ngx_rtmp_session_t *s, ngx_rtmp_play_t *v)
     }
 
 next:
+	//ready to call ngx_rtmp_play_play
     return next_play(s, v);
 }
 
-
+//由ngx_rtmp_relay_on_result调用
 static ngx_int_t
 ngx_rtmp_relay_play_local(ngx_rtmp_session_t *s)
 {
@@ -771,7 +795,7 @@ ngx_rtmp_relay_play_local(ngx_rtmp_session_t *s)
     return ngx_rtmp_play(s, &v);
 }
 
-
+//由ngx_rtmp_relay_on_result调用
 static ngx_int_t
 ngx_rtmp_relay_publish_local(ngx_rtmp_session_t *s)
 {
@@ -787,11 +811,11 @@ ngx_rtmp_relay_publish_local(ngx_rtmp_session_t *s)
     v.silent = 1;
     *(ngx_cpymem(v.name, ctx->name.data,
             ngx_min(sizeof(v.name) - 1, ctx->name.len))) = 0;
-
+//ngx_rtmp_auto_push_publish
     return ngx_rtmp_publish(s, &v);
 }
 
-
+//由ngx_rtmp_relay_handshake_done调用
 static ngx_int_t
 ngx_rtmp_relay_send_connect(ngx_rtmp_session_t *s)
 {
@@ -924,7 +948,7 @@ ngx_rtmp_relay_send_connect(ngx_rtmp_session_t *s)
         : NGX_OK;
 }
 
-
+//由ngx_rtmp_relay_on_result调用
 static ngx_int_t
 ngx_rtmp_relay_send_create_stream(ngx_rtmp_session_t *s)
 {
@@ -956,7 +980,7 @@ ngx_rtmp_relay_send_create_stream(ngx_rtmp_session_t *s)
             sizeof(out_elts) / sizeof(out_elts[0]));
 }
 
-
+//由ngx_rtmp_relay_on_result调用
 static ngx_int_t
 ngx_rtmp_relay_send_publish(ngx_rtmp_session_t *s)
 {
@@ -1011,7 +1035,7 @@ ngx_rtmp_relay_send_publish(ngx_rtmp_session_t *s)
             sizeof(out_elts) / sizeof(out_elts[0]));
 }
 
-
+//由ngx_rtmp_relay_on_result调用
 static ngx_int_t
 ngx_rtmp_relay_send_play(ngx_rtmp_session_t *s)
 {
@@ -1318,7 +1342,7 @@ ngx_rtmp_relay_handshake_done(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     return ngx_rtmp_relay_send_connect(s);
 }
 
-
+//由ngx_rtmp_relay_close_stream和ngx_rtmp_relay_delete_stream调用
 static void
 ngx_rtmp_relay_close(ngx_rtmp_session_t *s)
 {
@@ -1410,7 +1434,7 @@ ngx_rtmp_relay_close(ngx_rtmp_session_t *s)
     }
 }
 
-
+//close stream链的一环，上一个节点是ngx_rtmp_exec_close_stream
 static ngx_int_t
 ngx_rtmp_relay_close_stream(ngx_rtmp_session_t *s, ngx_rtmp_close_stream_t *v)
 {
@@ -1420,11 +1444,11 @@ ngx_rtmp_relay_close_stream(ngx_rtmp_session_t *s, ngx_rtmp_close_stream_t *v)
     if (racf && !racf->session_relay) {
         ngx_rtmp_relay_close(s);
     }
-
+    //ready to call ngx_rtmp_play_close_stream
     return next_close_stream(s, v);
 }
 
-
+//delete stream链的第一个节点，由ngx_rtmp_delete_stream、ngx_rtmp_cmd_disconnect触发
 static ngx_int_t
 ngx_rtmp_relay_delete_stream(ngx_rtmp_session_t *s, ngx_rtmp_delete_stream_t *v)
 {
@@ -1433,7 +1457,7 @@ ngx_rtmp_relay_delete_stream(ngx_rtmp_session_t *s, ngx_rtmp_delete_stream_t *v)
     return next_delete_stream(s, v);
 }
 
-
+//配置解析
 static char *
 ngx_rtmp_relay_push_pull(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {

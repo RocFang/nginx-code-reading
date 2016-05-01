@@ -177,7 +177,7 @@ ngx_rtmp_user_message_handler(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 
                 /*TODO: move this to play module */
                 s->buflen = v.buflen;
-
+                //call ngx_rtmp_cmd_set_buflen
                 return ngx_rtmp_set_buflen(s, &v);
             }
 

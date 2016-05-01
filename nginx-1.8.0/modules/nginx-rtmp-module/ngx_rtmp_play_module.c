@@ -803,6 +803,7 @@ ngx_rtmp_play_play(ngx_rtmp_session_t *s, ngx_rtmp_play_t *v)
     return ngx_rtmp_play_next_entry(s, v);
 
 next:
+	// ready to call ngx_rtmp_live_play
     return next_play(s, v);
 }
 

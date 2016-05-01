@@ -30,8 +30,15 @@ typedef volatile ngx_atomic_uint_t  ngx_atomic_t;
 #define NGX_ATOMIC_T_LEN            (sizeof("-2147483648") - 1)
 #endif
 
+/*
+ngx_atomic_cmp_set方法会将old参数与原子变量lock的值做比较，如果它们相等，则把lock设为参数set，同时方法返回1；
+如果它们不相等，则不做任何修改，返回0。
+*/
 #define ngx_atomic_cmp_set(lock, old, new)                                    \
     AO_compare_and_swap(lock, old, new)
+/*
+ngx_atomic_fetch_add方法会把原子变量value的值加上参数add，同时返回之前value的值。
+*/
 #define ngx_atomic_fetch_add(value, add)                                      \
     AO_fetch_and_add(value, add)
 #define ngx_memory_barrier()        AO_nop()
@@ -273,7 +280,7 @@ typedef uint32_t                    ngx_atomic_uint_t;
 typedef volatile ngx_atomic_uint_t  ngx_atomic_t;
 #define NGX_ATOMIC_T_LEN            (sizeof("-2147483648") - 1)
 
-
+//不支持原子库下的原子操作
 static ngx_inline ngx_atomic_uint_t
 ngx_atomic_cmp_set(ngx_atomic_t *lock, ngx_atomic_uint_t old,
      ngx_atomic_uint_t set)
@@ -286,7 +293,7 @@ ngx_atomic_cmp_set(ngx_atomic_t *lock, ngx_atomic_uint_t old,
      return 0;
 }
 
-
+//不支持原子库下的原子操作
 static ngx_inline ngx_atomic_int_t
 ngx_atomic_fetch_add(ngx_atomic_t *value, ngx_atomic_int_t add)
 {

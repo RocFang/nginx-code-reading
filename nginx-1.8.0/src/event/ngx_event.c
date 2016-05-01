@@ -60,17 +60,22 @@ ngx_int_t             ngx_accept_disabled;
 
 
 #if (NGX_STAT_STUB)
-
+//已经建立成功过的TCP连接数
 ngx_atomic_t   ngx_stat_accepted0;
 ngx_atomic_t  *ngx_stat_accepted = &ngx_stat_accepted0;
+/*连接建立成功且获取到ngx_connection_t结构体后，已经分配过内存池，并且在表示初始化了读/写事件后的连接数*/
 ngx_atomic_t   ngx_stat_handled0;
 ngx_atomic_t  *ngx_stat_handled = &ngx_stat_handled0;
+//已经由HTTP模块处理过的连接数
 ngx_atomic_t   ngx_stat_requests0;
 ngx_atomic_t  *ngx_stat_requests = &ngx_stat_requests0;
+/*已经从ngx_cycle_t核心结构体的free_connections连接池中获取到ngx_connection_t对象的活跃连接数*/
 ngx_atomic_t   ngx_stat_active0;
 ngx_atomic_t  *ngx_stat_active = &ngx_stat_active0;
+//正在接收TCP流的连接数
 ngx_atomic_t   ngx_stat_reading0;
 ngx_atomic_t  *ngx_stat_reading = &ngx_stat_reading0;
+//正在发送TCP流的连接数
 ngx_atomic_t   ngx_stat_writing0;
 ngx_atomic_t  *ngx_stat_writing = &ngx_stat_writing0;
 ngx_atomic_t   ngx_stat_waiting0;
@@ -492,7 +497,10 @@ ngx_event_module_init(ngx_cycle_t *cycle)
 
 
     /* cl should be equal to or greater than cache line size */
-
+	/*计算出需要使用的共享内存的大小。为什么每个统计成员需要使用128字节呢？
+	这似乎太大了，看上去，每个ngx_atomic_t原子变量最多需要8字节而已。其实是因为Nginx充分考虑了CPU的二级缓存。
+	在目前许多CPU架构下缓存行的大小都是128字节，而下面需要统计的变量都是访问非常频繁的成员，
+	同时它们占用的内存又非常少，所以采用了每个成员都使用128字节存放的形式，这样速度更快*/
     cl = 128;
 
     size = cl            /* ngx_accept_mutex */
@@ -510,19 +518,20 @@ ngx_event_module_init(ngx_cycle_t *cycle)
            + cl;         /* ngx_stat_waiting */
 
 #endif
-
+	//初始化描述共享内存的ngx_shm_t结构体
     shm.size = size;
     shm.name.len = sizeof("nginx_shared_zone");
     shm.name.data = (u_char *) "nginx_shared_zone";
     shm.log = cycle->log;
-
+	//开辟一块共享内存，共享内存的大小为shm.size
     if (ngx_shm_alloc(&shm) != NGX_OK) {
         return NGX_ERROR;
     }
-
+	//共享内存的首地址就在shm.addr成员中
     shared = shm.addr;
-
+	//原子变量类型的accept锁使用了128字节的共享内存
     ngx_accept_mutex_ptr = (ngx_atomic_t *) shared;
+	//ngx_accept_mutex就是负载均衡锁，spin值为-1则是告诉Nginx这把锁不可以使进程进入睡眠状态
     ngx_accept_mutex.spin = (ngx_uint_t) -1;
 
     if (ngx_shmtx_create(&ngx_accept_mutex, (ngx_shmtx_sh_t *) shared,
@@ -531,7 +540,7 @@ ngx_event_module_init(ngx_cycle_t *cycle)
     {
         return NGX_ERROR;
     }
-
+	/*原子变量类型的ngx_connection_counter将统计所有建立过的连接数（包括主动发起的连接）*/
     ngx_connection_counter = (ngx_atomic_t *) (shared + 1 * cl);
 
     (void) ngx_atomic_cmp_set(ngx_connection_counter, 0, 1);
@@ -547,7 +556,7 @@ ngx_event_module_init(ngx_cycle_t *cycle)
     ngx_random_number = (tp->msec << 16) + ngx_pid;
 
 #if (NGX_STAT_STUB)
-
+	//依次初始化需要统计的6个原子变量，也就是使用共享内存作为原子变量
     ngx_stat_accepted = (ngx_atomic_t *) (shared + 3 * cl);
     ngx_stat_handled = (ngx_atomic_t *) (shared + 4 * cl);
     ngx_stat_requests = (ngx_atomic_t *) (shared + 5 * cl);

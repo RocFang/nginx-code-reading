@@ -453,7 +453,13 @@ ngx_init_cycle(ngx_cycle_t *old_cycle)
 
                 goto shm_zone_found;
             }
+/*
+当我们执行-s reload命令时，Nginx会重新加载配置文件，此时，会触发再次初始化slab共享内存池。而在该过程中，
+tag地址同样将用于区分先后两次的初始化是否对应于同一块共享内存。所以，tag中应传入全局变量的地址，以使两次设置tag时传入的是相同地址。
+如果前后两次设置的tag地址不同，则会导致即使共享内存大小没有变化，旧的共享内存也会被释放掉，然后再重新分配一块同样大小的共享内存，
+这是没有必要的。
 
+*/
             ngx_shm_free(&oshm_zone[n].shm);
 
             break;
@@ -1170,6 +1176,26 @@ ngx_reopen_files(ngx_cycle_t *cycle, ngx_uid_t user)
     (void) ngx_log_redirect_stderr(cycle);
 }
 
+// 告诉Nginx初始化1块大小为size、名称为name的slab共享内存池
+/*ngx_shared_memory_add需要4个参数，从第1个参数ngx_conf_t*cf的配置文件结构体就可以推测出，该方法必须在解析配置文件这一步中执行。
+所以在ngx_command_t里定义的配置项解析方法中可以拿到ngx_conf_t*cf，通常，我们都会在配置文件里设置共享内存的大小。
+当然，各http模块都是在解析http{}配置项时才会被初始化，定义http模块时ngx_http_module_t的8个回调方法里也可以拿到ngx_conf_t*cf。
+
+参数ngx_str_t*name是这块slab共享内存池的名字。显而易见，Nginx进程中可能会有许多个slab内存池，而且，
+有可能多处代码使用同一块slab内存池，这样才有必要用唯一的名字来标识每一个slab内存池。
+
+参数size_t size设置了共享内存的大小。
+
+参数void*tag则用于防止两个不相关的Nginx模块所定义的内存池恰好具有同样的名字，从而造成数据错乱。
+所以，通常可以把tag参数传入本模块结构体的地址。tag参数会存放在ngx_shm_zone_t的tag成员中。
+
+当我们执行-s reload命令时，Nginx会重新加载配置文件，此时，会触发再次初始化slab共享内存池。而在该过程中，
+tag地址同样将用于区分先后两次的初始化是否对应于同一块共享内存。所以，tag中应传入全局变量的地址，以使两次设置tag时传入的是相同地址。
+
+如果前后两次设置的tag地址不同，则会导致即使共享内存大小没有变化，旧的共享内存也会被释放掉，
+然后再重新分配一块同样大小的共享内存，这是没有必要的。
+
+*/
 
 ngx_shm_zone_t *
 ngx_shared_memory_add(ngx_conf_t *cf, ngx_str_t *name, size_t size, void *tag)

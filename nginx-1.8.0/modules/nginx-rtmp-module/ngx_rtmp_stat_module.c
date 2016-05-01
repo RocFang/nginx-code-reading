@@ -115,6 +115,7 @@ ngx_rtmp_stat_init_process(ngx_cycle_t *cycle)
      * so we can run posted events here
      */
 
+    //ngx_rtmp_relay_static_pull_reconnect
     ngx_event_process_posted(cycle, &ngx_rtmp_init_queue);
 
     return NGX_OK;
@@ -715,6 +716,7 @@ ngx_rtmp_stat_server(ngx_http_request_t *r, ngx_chain_t ***lll,
 
     cacf = cscf->applications.elts;
     for (n = 0; n < cscf->applications.nelts; ++n, ++cacf) {
+		//统计当前server下的各个app
         ngx_rtmp_stat_application(r, lll, *cacf);
     }
 
@@ -739,6 +741,7 @@ ngx_rtmp_stat_handler(ngx_http_request_t *r)
         return NGX_DECLINED;
     }
 
+    //ngx_rtmp_core_main_conf初始化见ngx_rtmp_core_create_main_conf
     cmcf = ngx_rtmp_core_main_conf;
     if (cmcf == NULL) {
         goto error;
@@ -790,6 +793,7 @@ ngx_rtmp_stat_handler(ngx_http_request_t *r)
 
     cscf = cmcf->servers.elts;
     for (n = 0; n < cmcf->servers.nelts; ++n, ++cscf) {
+		//统计功能核心入口函数，统计各个server
         ngx_rtmp_stat_server(r, lll, *cscf);
     }
 

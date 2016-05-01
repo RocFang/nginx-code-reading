@@ -31,6 +31,7 @@ typedef struct {
 } ngx_rtmp_live_chunk_stream_t;
 
 
+//每一个ngx_rtmp_live_ctx_t结构体，表示一个具体的客户端(推流端，播放器)
 struct ngx_rtmp_live_ctx_s {
 	// 指向对应的请求session,每一个请求，无论是发布者还是订阅者，都会对应一个session
     ngx_rtmp_session_t                 *session;
@@ -39,9 +40,19 @@ struct ngx_rtmp_live_ctx_s {
 	// 同一个流的每个用户，包括发布者和订阅者，其ctx结构会通过这个next指针串联成一个链表。链表的起始为最后一个订阅者ctx，终点为发布者ctx。
     ngx_rtmp_live_ctx_t                *next;
     ngx_uint_t                          ndropped;
+	/*
+csidx:
+如果没有开启interleave(默认即没有开启),并且收到的消息类型不是NGX_RTMP_MSG_VIDEO，则csidx为1.
+如果开启了interleave，或者收到的消息类型为NGX_RTMP_MSG_VIDEO，则csidx为0.
+
+也就是说，如果消息类型为NGX_RTMP_MSG_VIDEO，则使用cs[0]
+其他消息类型(NGX_RTMP_MSG_AUDIO)，则使用cs[1],
+但是如果开启了interleave,则无论是NGX_RTMP_MSG_VIDEO还是NGX_RTMP_MSG_AUDIO，均使用cs[0]
+*/
     ngx_rtmp_live_chunk_stream_t        cs[2];
     ngx_uint_t                          meta_version;
     ngx_event_t                         idle_evt;
+	// 当前客户端是否有效
     unsigned                            active:1;
 	//publishing为1,则表示当前session的主体为发布者
     unsigned                            publishing:1;
@@ -60,6 +71,7 @@ struct ngx_rtmp_live_stream_s {
     ngx_rtmp_bandwidth_t                bw_in_video;
     ngx_rtmp_bandwidth_t                bw_out;
     ngx_msec_t                          epoch;
+	// stream的active标志由推流端决定
     unsigned                            active:1;
 	// publishing为1，则表示该流正在被推送
     unsigned                            publishing:1;

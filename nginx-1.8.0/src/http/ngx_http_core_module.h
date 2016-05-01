@@ -223,9 +223,12 @@ typedef struct {
     ngx_http_phase_engine_t    phase_engine;
 
     ngx_hash_t                 headers_in_hash;
-
+    // 存储变量名的散列表，调用ngx_http_get_variable方法获取未索引的变量值时就靠这个
+    // 散列表找到变量的解析方法
     ngx_hash_t                 variables_hash;
-
+    // 存储索引过的变量的数组，通常各模块使用变量时都会在Nginx启动阶段从该数组中获得索引号，
+    // 这样，在Nginx运行期内，如果变量值没有被缓存，就会通过索引号在variables数组中找到
+    // 变量的定义，再解析出变量值
     ngx_array_t                variables;       /* ngx_http_variable_t */
     ngx_uint_t                 ncaptures;
 
@@ -234,7 +237,7 @@ typedef struct {
 
     ngx_uint_t                 variables_hash_max_size;
     ngx_uint_t                 variables_hash_bucket_size;
-
+    // 用于构造variables_hash散列表的初始结构体
     ngx_hash_keys_arrays_t    *variables_keys;
 	//存放着该http{}配置块下监听的所有ngx_http_conf_port_t端口
     ngx_array_t               *ports;

@@ -68,6 +68,8 @@ static ngx_uint_t  ngx_slab_max_size;
 static ngx_uint_t  ngx_slab_exact_size;
 static ngx_uint_t  ngx_slab_exact_shift;
 
+// 初始化新创建的共享内存
+//ngx_slab_init由Nginx框架自动调用，使用slab内存池时不需要关注它.在ngx_init_zone_pool中被调用
 
 void
 ngx_slab_init(ngx_slab_pool_t *pool)
@@ -136,6 +138,11 @@ ngx_slab_init(ngx_slab_pool_t *pool)
     pool->zero = '\0';
 }
 
+// 加锁保护的内存分配方法
+/*模块开发时分配内存调用ngx_slab_alloc，参数size就是需要分配的内存大小，返回值就是内存块的首地址，
+共享内存用尽时这个方法会返回NULL；释放这块内存时调用ngx_slab_free，参数p就是ngx_slab_alloc返回的内存地址。
+pool参数由ngx_shared_memory_add方法即可拿到
+*/
 
 void *
 ngx_slab_alloc(ngx_slab_pool_t *pool, size_t size)
@@ -151,6 +158,9 @@ ngx_slab_alloc(ngx_slab_pool_t *pool, size_t size)
     return p;
 }
 
+// 不加锁保护的内存分配方法
+//通常要用到slab的都是要跨进程通信的场景，所以ngx_slab_alloc_locked和ngx_slab_free_locked这对不加锁的分配、
+//释放内存方法较少使用，除非模块中已经有其他的同步锁可以复用。
 
 void *
 ngx_slab_alloc_locked(ngx_slab_pool_t *pool, size_t size)
@@ -426,7 +436,7 @@ ngx_slab_calloc_locked(ngx_slab_pool_t *pool, size_t size)
     return p;
 }
 
-
+// 加锁保护的内存释放方法
 void
 ngx_slab_free(ngx_slab_pool_t *pool, void *p)
 {
@@ -437,7 +447,7 @@ ngx_slab_free(ngx_slab_pool_t *pool, void *p)
     ngx_shmtx_unlock(&pool->mutex);
 }
 
-
+// 不加锁保护的内存释放方法
 void
 ngx_slab_free_locked(ngx_slab_pool_t *pool, void *p)
 {

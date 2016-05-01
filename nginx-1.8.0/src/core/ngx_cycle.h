@@ -23,13 +23,27 @@
 
 
 typedef struct ngx_shm_zone_s  ngx_shm_zone_t;
-
+/*
+这个方法被回调时，其第1个参数就是ngx_shared_memory_add返回的，而且是刚刚设置过其init函数指针成员的ngx_shm_zone_t结构体。
+对于ngx_shm_zone_init_pt的第2个参数void*data，在理解它之前先要搞清楚Nginx的reload重载配置文件流程。
+重新解析配置文件意味着所有的模块（包括http模块）都会重新初始化，然而，之前正处于使用中的共享内存可能是有数据的、可以复用的，
+如果丢弃了这些旧数据而重新开辟新的共享内存，是会造成严重错误的。所以如果处于重读配置文件流程中，
+会尽可能地使用旧共享内存（如果存在的话），表现在ngx_shm_zone_init_pt的第2个参数void*data上时，就意味着：
+如果Nginx是首次启动，data则为空指针NULL；若是重读配置文件，由于配置项、http模块的初始化导致共享内存再次创建，
+那么data就会指向第一次创建共享内存时，ngx_shared_memory_add返回的ngx_shm_zone_t中的data成员。
+读者朋友在处理data参数时请务必考虑以上场景，考虑如何使用老的共享内存，以避免不必要的错误。
+*/
 typedef ngx_int_t (*ngx_shm_zone_init_pt) (ngx_shm_zone_t *zone, void *data);
 
 struct ngx_shm_zone_s {
+	// 当ngx_shm_zone_init_pt方法回调时，通常在使用slab内存池的代码前需要做一些初始化工作，
+    // 这一工作可能需要用到在解析配置文件时就获取到的一些参数，而data主要担当传递参数的职责
     void                     *data;
+	 // 描述共享内存的结构体
     ngx_shm_t                 shm;
+	// 在真正创建好slab共享内存池后，就会回调init指向的方法
     ngx_shm_zone_init_pt      init;
+	 // 对应于ngx_shared_memory_add的tag参数
     void                     *tag;
 };
 

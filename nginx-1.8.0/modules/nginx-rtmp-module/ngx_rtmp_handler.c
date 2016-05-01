@@ -453,7 +453,7 @@ ngx_rtmp_recv(ngx_event_t *rev)
                  * according to standard.
                  * However that's not always the case
                  * in real life */
-
+// 关于这个问题的说明，参考:http://nginx-rtmp.blogspot.hk/2012/03/hello-world.html
 				//cscf->publish_time_fix默认开启，即为1
                 st->ext = (ext && cscf->publish_time_fix);
                 if (fmt) {
@@ -627,6 +627,10 @@ ngx_rtmp_send(ngx_event_t *wev)
 }
 
 
+/*
+为一个message生成chunk头，lh参数是前一个message的头部，根据前一个头部来决定当前消息的头部的fmt，进而决定当前待发送包的chunk头中的
+消息头
+*/
 void
 ngx_rtmp_prepare_message(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         ngx_rtmp_header_t *lh, ngx_chain_t *out)
@@ -659,13 +663,16 @@ ngx_rtmp_prepare_message(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         mlen += (l->buf->last - l->buf->pos);
         ++nbufs;
     }
-
+    // fmt影响的是chunk里message header的内容
     fmt = 0;
     if (lh && lh->csid && h->msid == lh->msid) {
+		//fmt=1
         ++fmt;
         if (h->type == lh->type && mlen && mlen == lh->mlen) {
+			//fmt=2
             ++fmt;
             if (h->timestamp == lh->timestamp) {
+				//fmt=3
                 ++fmt;
             }
         }

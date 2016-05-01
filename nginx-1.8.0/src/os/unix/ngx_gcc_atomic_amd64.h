@@ -38,11 +38,13 @@ ngx_atomic_cmp_set(ngx_atomic_t *lock, ngx_atomic_uint_t old,
     ngx_atomic_uint_t set)
 {
     u_char  res;
-
+	//在C语言中嵌入汇编语言
     __asm__ volatile (
-
+	//多核架构下首先锁住总线
          NGX_SMP_LOCK
+    //将*lock的值与eax寄存器中的old相比较，如果相等，则置*lock的值为set
     "    cmpxchgq  %3, %1;   "
+    //cmpxchgl的比较若是相等，则把zf标志位1写入res变量，否则res为0
     "    sete      %0;       "
 
     : "=a" (res) : "m" (*lock), "a" (old), "r" (set) : "cc", "memory");

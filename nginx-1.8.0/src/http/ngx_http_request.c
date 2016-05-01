@@ -586,7 +586,8 @@ ngx_http_create_request(ngx_connection_t *c)
     }
 
     cmcf = ngx_http_get_module_main_conf(r, ngx_http_core_module);
-
+    // 缓存变量值的variables数组下标，与索引化的、表示变量名的数组cmcf->variables下标，
+    // 它们是一一对应的
     r->variables = ngx_pcalloc(r->pool, cmcf->variables.nelts
                                         * sizeof(ngx_http_variable_value_t));
     if (r->variables == NULL) {

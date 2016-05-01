@@ -80,7 +80,7 @@ addrs是一个数组，元素个数为naddrs，类型为ngx_rtmp_in_addr_t
 */
 
 typedef struct {
-    void                   *addrs;
+    void                   *addrs;//ngx_rtmp_in_addr_t
     ngx_uint_t              naddrs;
 } ngx_rtmp_port_t;
 
@@ -654,6 +654,10 @@ ngx_rtmp_get_video_frame_type(ngx_chain_t *in)
 }
 
 
+/*
+用来判断aac packet type或avc packet type
+如果是avc sequence header或者aac sequence header，则返回1，否则返回0
+*/
 static ngx_inline ngx_int_t
 ngx_rtmp_is_codec_header(ngx_chain_t *in)
 {

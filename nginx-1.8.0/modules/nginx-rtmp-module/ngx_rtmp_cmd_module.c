@@ -579,6 +579,7 @@ ngx_rtmp_cmd_play_init(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
                   (ngx_int_t) v.duration, (ngx_int_t) v.reset,
                   (ngx_int_t) v.silent);
 
+    //ready to call ngx_rtmp_log_play
     return ngx_rtmp_play(s, &v);
 }
 
@@ -689,7 +690,7 @@ ngx_rtmp_cmd_pause_init(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     ngx_log_debug2(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
                    "pause: pause=%i position=%i",
                     (ngx_int_t) v.pause, (ngx_int_t) v.position);
-
+//call  ngx_rtmp_play_pause
     return ngx_rtmp_pause(s, &v);
 }
 

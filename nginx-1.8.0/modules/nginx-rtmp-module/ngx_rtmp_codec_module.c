@@ -189,7 +189,7 @@ ngx_rtmp_codec_disconnect(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     return NGX_OK;
 }
 
-
+//执行完ngx_rtmp_codec_av后，会执行ngx_rtmp_live_av
 static ngx_int_t
 ngx_rtmp_codec_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         ngx_chain_t *in)
@@ -200,7 +200,7 @@ ngx_rtmp_codec_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     uint8_t                             fmt;
     static ngx_uint_t                   sample_rates[] =
                                         { 5512, 11025, 22050, 44100 };
-
+    // 只用处理音视频类型的消息
     if (h->type != NGX_RTMP_MSG_AUDIO && h->type != NGX_RTMP_MSG_VIDEO) {
         return NGX_OK;
     }
@@ -247,7 +247,7 @@ ngx_rtmp_codec_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
             ctx->sample_rate = sample_rates[(fmt & 0x0c) >> 2];
         }
     } else {
-    //video frame type
+    //video codecid
         ctx->video_codec_id = (fmt & 0x0f);
     }
 
@@ -268,16 +268,19 @@ ngx_rtmp_codec_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     if (h->type == NGX_RTMP_MSG_AUDIO) {
         if (ctx->audio_codec_id == NGX_RTMP_AUDIO_AAC) {
             header = &ctx->aac_header;
+			//解析audio sequence header，将响应内容保存在ctx中
             ngx_rtmp_codec_parse_aac_header(s, in);
         }
     } else {
         if (ctx->video_codec_id == NGX_RTMP_VIDEO_H264) {
+			//解析video sequence header,将响应内容保存在ctx中
             header = &ctx->avc_header;
             ngx_rtmp_codec_parse_avc_header(s, in);
         }
     }
 
     if (header == NULL) {
+		// header == NULL,说明编码方式既不是NGX_RTMP_AUDIO_AAC，也不是NGX_RTMP_VIDEO_H264
         return NGX_OK;
     }
     // 注意，这里判断的是*header，而不是header，意思是判断ngx_rtmp_codec_ctx_t里的avc_header或者aac_header是否指向NULL。
@@ -285,13 +288,18 @@ ngx_rtmp_codec_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         ngx_rtmp_free_shared_chain(cscf, *header);
     }
 
-    // 内存拷贝。让ngx_rtmp_codec_ctx_t里的avc_header或者aac_header指向一段按照shared buffer组织的链。链的内容是由in 链拷贝得到。
+ /*
+ 内存拷贝。让ngx_rtmp_codec_ctx_t里的avc_header或者aac_header指向一段按照shared buffer组织的链。链的内容是由in 链拷贝得到。
+ */
     *header = ngx_rtmp_append_shared_bufs(cscf, NULL, in);
 
     return NGX_OK;
 }
 
 
+/*
+该函数的主要目的是解析aac sequence header，即14496-3中的AudioSpecificConfig
+*/
 static void
 ngx_rtmp_codec_parse_aac_header(ngx_rtmp_session_t *s, ngx_chain_t *in)
 {
@@ -313,22 +321,38 @@ ngx_rtmp_codec_parse_aac_header(ngx_rtmp_session_t *s, ngx_chain_t *in)
 
     ngx_rtmp_bit_init_reader(&br, in->buf->pos, in->buf->last);
 
+    // 往前移动16未，开始解析aac sequence header，即AudioSpecificConfig，见14496-3 1.6.2.1
     ngx_rtmp_bit_read(&br, 16);
 
+    // aac_profile对应audioObjectType
+/*
+A five bit field indicating the audio object type. This is the master switch which selects the actual bitstream syntax of
+the audio data. In general, different object type use a different bitstream syntax. 
+
+*/
     ctx->aac_profile = (ngx_uint_t) ngx_rtmp_bit_read(&br, 5);
     if (ctx->aac_profile == 31) {
+/*
+14496-3 在这一块写的不全，参考http://wiki.multimedia.cx/index.php?title=MPEG-4_Audio
+和ffmpeg的AudioObjectType、AOT_ESCAPE、和get_object_type
+一般用5bit表示audio object type,但是如果这5位都为1的话，就使用后面的6位+32获取
+*/
         ctx->aac_profile = (ngx_uint_t) ngx_rtmp_bit_read(&br, 6) + 32;
     }
 
+//idx即为samplingFrequencyIndex;下面是为了获取samplingFrequency
     idx = (ngx_uint_t) ngx_rtmp_bit_read(&br, 4);
     if (idx == 15) {
+		//如果samplingFrequencyIndex=15，则接下来的24位表示samplingFrequency
         ctx->sample_rate = (ngx_uint_t) ngx_rtmp_bit_read(&br, 24);
     } else {
         ctx->sample_rate = aac_sample_rates[idx];
     }
-
+//channelConfiguration 见见14496-3 1.6.3.4
     ctx->aac_chan_conf = (ngx_uint_t) ngx_rtmp_bit_read(&br, 4);
 
+// 参考ffmpeg ff_mpeg4audio_get_config,AudioObjectType中的AOT_SBR,Spectral Band Replication和AOT_PS，Parametric Stereo
+// https://en.wikipedia.org/wiki/Parametric_Stereo
     if (ctx->aac_profile == 5 || ctx->aac_profile == 29) {
         
         if (ctx->aac_profile == 29) {
@@ -377,7 +401,9 @@ ngx_rtmp_codec_parse_aac_header(ngx_rtmp_session_t *s, ngx_chain_t *in)
                    ctx->aac_profile, ctx->sample_rate, ctx->aac_chan_conf);
 }
 
-
+/*
+该函数的目的是解析avc sequence header，即14496-15中的AVCDecoderConfigurationRecord
+*/
 static void
 ngx_rtmp_codec_parse_avc_header(ngx_rtmp_session_t *s, ngx_chain_t *in)
 {
@@ -397,20 +423,39 @@ ngx_rtmp_codec_parse_avc_header(ngx_rtmp_session_t *s, ngx_chain_t *in)
 
     ngx_rtmp_bit_read(&br, 48);
 
-    //avc格式成员：AVCDecoderConfigurationRecord
+    //AVCProfileIndication，AVCProfileIndication contains the profile code as defined in ISO/IEC 14496-10.
     ctx->avc_profile = (ngx_uint_t) ngx_rtmp_bit_read_8(&br);
+	//profile_compatibility，profile_compatibility is a byte defined exactly the same as the byte which occurs between the
+    //profile_IDC and level_IDC in a sequence parameter set (SPS), as defined in ISO/IEC 14496-10.
     ctx->avc_compat = (ngx_uint_t) ngx_rtmp_bit_read_8(&br);
+	//AVCLevelIndication，AVCLevelIndication contains the level code as defined in ISO/IEC 14496-10.
     ctx->avc_level = (ngx_uint_t) ngx_rtmp_bit_read_8(&br);
 
     /* nal bytes */
+	//lengthSizeMinusOne
+	/*
+	lengthSizeMinusOne indicates the length in bytes of the NALUnitLength field in an AVC video
+sample or AVC parameter set sample of the associated stream minus one. For example, a size of one
+byte is indicated with a value of 0. The value of this field shall be one of 0, 1, or 3 corresponding to a
+length encoded with 1, 2, or 4 bytes, respectively.
+	*/
     ctx->avc_nal_bytes = (ngx_uint_t) ((ngx_rtmp_bit_read_8(&br) & 0x03) + 1);
 
     /* nnals */
+	/*
+	越过numOfSequenceParameterSets
+numOfSequenceParameterSets indicates the number of SPSs that are used as the initial set of SPSs
+for decoding the AVC elementary stream.
+	*/
     if ((ngx_rtmp_bit_read_8(&br) & 0x1f) == 0) {
         return;
     }
 
     /* nal size */
+/*
+sequenceParameterSetLength indicates the length in bytes of the SPS NAL unit as defined in
+ISO/IEC 14496-10.
+*/
     ngx_rtmp_bit_read(&br, 16);
 
     /* nal type */
@@ -419,7 +464,9 @@ ngx_rtmp_codec_parse_avc_header(ngx_rtmp_session_t *s, ngx_chain_t *in)
     }
 
     /* SPS */
-
+/*
+参考14496-10 7.3.2.1
+*/
     /* profile idc */
     profile_idc = (ngx_uint_t) ngx_rtmp_bit_read(&br, 8);
 
@@ -430,6 +477,10 @@ ngx_rtmp_codec_parse_avc_header(ngx_rtmp_session_t *s, ngx_chain_t *in)
     ngx_rtmp_bit_read(&br, 8);
 
     /* SPS id */
+	/*
+	seq_parameter_set_id identifies the sequence parameter set that is referred to by the picture parameter set. The value of
+seq_parameter_set_id shall be in the range of 0 to 31, inclusive.
+	*/
     ngx_rtmp_bit_read_golomb(&br);
 
     if (profile_idc == 100 || profile_idc == 110 ||

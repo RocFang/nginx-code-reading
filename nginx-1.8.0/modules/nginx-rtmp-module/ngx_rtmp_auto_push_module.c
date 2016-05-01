@@ -117,7 +117,10 @@ ngx_rtmp_auto_push_init_process(ngx_cycle_t *cycle)
     if (apcf->auto_push == 0) {
         return NGX_OK;
     }
-
+    /*注意，一般而言，amf处理链的挂载，是在各模块的postconfiguration钩子中进行的，
+    而auto_push 模块是在init_process中做的，postconfiguration钩子是在主进程解析配置之后调用的，而
+    init_process是在子进程被fork之后执行的。所以,postconfiguration执行在前。
+    这就导致了，auto_push中挂载的处理链的节点，在处理链的尾部，也就是执行的头部*/
     next_publish = ngx_rtmp_publish;
     ngx_rtmp_publish = ngx_rtmp_auto_push_publish;
 

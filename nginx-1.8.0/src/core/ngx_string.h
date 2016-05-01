@@ -26,13 +26,18 @@ typedef struct {
 
 
 typedef struct {
+	// 变量值必须是在一段连续内存中的字符串，值的长度就是len成员
     unsigned    len:28;
-
+    // valid为1时表示当前这个变量值已经解析过，且数据是可用的
     unsigned    valid:1;
+	// no_cacheable为1时表示变量值不可以被缓存，它与ngx_http_variable_t结构体flags成员
+    // 里的NGX_HTTP_VAR_NOCACHEABLE标志位是相关的，即设置这个标志位后no_cacheable就会为1
     unsigned    no_cacheable:1;
+	// not_found为1表示当前这个变量值已经解析过，但没有解析到相应的值
     unsigned    not_found:1;
+    // 仅由ngx_http_log_module模块使用，用于日志格式的字符转义，其他模块通常忽略这个字段
     unsigned    escape:1;
-
+    // data就指向变量值所在内存的起始地址，与len成员配合使用
     u_char     *data;
 } ngx_variable_value_t;
 
