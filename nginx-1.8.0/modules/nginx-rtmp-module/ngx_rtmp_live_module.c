@@ -745,7 +745,7 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     ngx_rtmp_live_chunk_stream_t   *cs;
 #ifdef NGX_DEBUG
     const char                     *type_s;
-    //type_s仅仅用在写日志中
+    //type_s仅仅用在写在调试日志中
     type_s = (h->type == NGX_RTMP_MSG_VIDEO ? "video" : "audio");
 #endif
 
@@ -754,10 +754,13 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         return NGX_ERROR;
     }
 
+    //只有开启了live 配置的app，才会进入下面的逻辑
     if (!lacf->live || in == NULL  || in->buf == NULL) {
         return NGX_OK;
     }
 
+    //对于音视频发布者来说，其对应的sesstion的live模块的ctx，在ngx_rtmp_live_join时已经分配，
+    //ngx_rtmp_live_join在ngx_rtmp_live_publish中被调用.ngx_rtmp_live_publish则是在服务器收到推流端的publish amf指令时被调用
     ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_live_module);
     if (ctx == NULL || ctx->stream == NULL) {
         return NGX_OK;
@@ -769,7 +772,7 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         return NGX_OK;
     }
 
-	//进入到下面逻辑的,ctx都是发布者
+	//进入到后面逻辑的,都是发布者
 
     if (!ctx->stream->active) {
 		//收到推流者推来的第一个音视频消息时，推流者的ctx->active和ctx->stream->active还为0，在ngx_rtmp_live_start中，会将其置于1
@@ -963,6 +966,7 @@ cs[1]中的csid为NGX_RTMP_CSID_AUDEO，即6
         if (!cs->active) {
 
             if (mandatory) {
+				// mandatory为1表明当前包是codec header，播放器必须要它才能正常的解码音视频数据
 				// 如果当前包是avc header或者aac header，则暂时不发，等跟首个音、视频包一起发
                 ngx_log_debug0(NGX_LOG_DEBUG_RTMP, ss->connection->log, 0,
                                "live: skipping header");
@@ -1147,6 +1151,7 @@ ngx_rtmp_live_publish(ngx_rtmp_session_t *s, ngx_rtmp_publish_t *v)
 
     ngx_rtmp_live_join(s, v->name, 1);
 
+    /*在上一步ngx_rtmp_live_join中，会设置ngx_rtmp_live_module的ctx*/
     ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_live_module);
     if (ctx == NULL || !ctx->publishing) {
         goto next;
@@ -1160,6 +1165,7 @@ ngx_rtmp_live_publish(ngx_rtmp_session_t *s, ngx_rtmp_publish_t *v)
     }
 
 next:
+	//call ngx_rtmp_record_publish
     return next_publish(s, v);
 }
 

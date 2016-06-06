@@ -921,6 +921,7 @@ ngx_close_connection(ngx_connection_t *c)
     }
 
     if (ngx_del_conn) {
+		//ngx_epoll_del_connection
         ngx_del_conn(c, NGX_CLOSE_EVENT);
 
     } else {

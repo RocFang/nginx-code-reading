@@ -813,7 +813,7 @@ static ngx_path_init_t  ngx_http_proxy_temp_path = {
     ngx_string(NGX_HTTP_PROXY_TEMP_PATH), { 1, 2, 0 }
 };
 
-
+//在一次proxy_pass的处理流程中，一般该handler总会执行很多次
 static ngx_int_t
 ngx_http_proxy_handler(ngx_http_request_t *r)
 {

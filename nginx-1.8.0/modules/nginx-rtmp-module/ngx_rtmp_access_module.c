@@ -442,6 +442,7 @@ ngx_rtmp_access_publish(ngx_rtmp_session_t *s, ngx_rtmp_publish_t *v)
     }
 
 next:
+	//call ngx_rtmp_cmd_publish
     return next_publish(s, v);
 }
 

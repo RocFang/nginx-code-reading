@@ -162,11 +162,18 @@ ngx_rtmp_ping(ngx_event_t *pev)
     cscf = ngx_rtmp_get_module_srv_conf(s, ngx_rtmp_core_module);
 
     /* i/o event has happened; no need to ping */
+	/*在ngx_rtmp_recv和ngx_rtmp_send中进行了有效的网络IO之后，s->ping_reset即会被置为1.
+	如果随后ping的定时器触发，则会进入ngx_rtmp_reset_ping，而不会进入后面的逻辑,也就是说，如果进行了
+	有效的网络IO，是没有必要再通过ping消息来检验对端是否可达的*/
     if (s->ping_reset) {
         ngx_rtmp_reset_ping(s);
         return;
     }
 
+    /*s->ping_active在初始化时为0，在ngx_rtmp_reset_ping中会被置为0.
+    在向客户端发送了ping request之后，则被置为1.
+    所以，s->ping_active为1表示，当前服务器已经向客户端发送了ping request，但是还没有被重置为0.也就是说，
+    在向客户端成功发送了ping request之后到现在，还没有进行有效的网络IO，可以认为客户端不可达了，所以直接断开连接*/
     if (s->ping_active) {
         ngx_log_error(NGX_LOG_INFO, c->log, 0,
                 "ping: unresponded");

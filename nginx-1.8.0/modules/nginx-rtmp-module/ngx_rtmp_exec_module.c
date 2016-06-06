@@ -1224,6 +1224,7 @@ ngx_rtmp_exec_play(ngx_rtmp_session_t *s, ngx_rtmp_play_t *v)
     }
 
 next:
+	//ready to call ngx_rtmp_relay_play
     return next_play(s, v);
 }
 
