@@ -60,6 +60,7 @@ ngx_rtmp_alloc_shared_buf(ngx_rtmp_core_srv_conf_t *cscf)
 
     out->next = NULL;
     b = out->buf;
+	/*b->pos指向message body*/
     b->pos = b->last = b->start + NGX_RTMP_MAX_CHUNK_HEADER;
     b->memory = 1;
 
@@ -97,7 +98,14 @@ ngx_rtmp_free_shared_chain(ngx_rtmp_core_srv_conf_t *cscf, ngx_chain_t *in)
     }
 }
 
-
+/*
+1. 当前系统中，只有ngx_rtmp_mp4_send中在调用ngx_rtmp_append_shared_bufs时，有不为NULL的head参数
+2. in链参数为一条message的内容，本质是一条普通的chain链
+3. head参数要么为NULL(大多数情况也是如此),当其为NULL的时候，将in链重组，重组过程是，调用ngx_rtmp_alloc_shared_buf
+   重新分配一个chain链，这个chain链的buffer大小保证了只要一个节点就能保存in链的内容，并且在chain链前分配一个引用计数。
+4. head参数如果不为NULL(如ngx_rtmp_mp4_send中)，则head参数不是一个普通的chain链，而是用ngx_rtmp_alloc_shared_buf分配过的chain链，
+   主要是buffer大小、引用计数两个特点与普通chain链不同
+*/
 ngx_chain_t *
 ngx_rtmp_append_shared_bufs(ngx_rtmp_core_srv_conf_t *cscf,
         ngx_chain_t *head, ngx_chain_t *in)

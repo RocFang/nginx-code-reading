@@ -1470,6 +1470,7 @@ ngx_rtmp_hls_publish(ngx_rtmp_session_t *s, ngx_rtmp_publish_t *v)
     }
 
 next:
+	//ngx_rtmp_log_publish
     return next_publish(s, v);
 }
 

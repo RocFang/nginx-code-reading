@@ -10,8 +10,11 @@
 #include "ngx_rtmp_amf.h"
 
 
+//接收message
 static void ngx_rtmp_recv(ngx_event_t *rev);
+//发送message
 static void ngx_rtmp_send(ngx_event_t *rev);
+//处理rtmp ping
 static void ngx_rtmp_ping(ngx_event_t *rev);
 static ngx_int_t ngx_rtmp_finalize_set_chunk_size(ngx_rtmp_session_t *s);
 
@@ -23,6 +26,10 @@ ngx_rtmp_bandwidth_t        ngx_rtmp_bw_out;
 ngx_rtmp_bandwidth_t        ngx_rtmp_bw_in;
 
 
+/*
+ngx_rtmp_message_type和ngx_rtmp_user_message_type仅在调试日志中会用到
+
+*/
 #ifdef NGX_DEBUG
 char*
 ngx_rtmp_message_type(uint8_t type)
@@ -79,7 +86,7 @@ ngx_rtmp_user_message_type(uint16_t evt)
 }
 #endif
 
-/* rtmp 包处理逻辑 */
+/* rtmp 包处理逻辑，在rtmp握手之后执行 */
 void
 ngx_rtmp_cycle(ngx_rtmp_session_t *s)
 {
@@ -100,7 +107,7 @@ ngx_rtmp_cycle(ngx_rtmp_session_t *s)
 
 /*
 分配一个ngx_chain_t和一个ngx_buf_t的内存
-并为ngx_buf_t一般情况下大小为128+18=146字节的内存。
+并为ngx_buf_t分配一般情况下大小为128+18=146字节的内存。
 ngx_chaint_t的buf指针指向该ngx_buf_t结构.
 */
 static ngx_chain_t *
@@ -129,7 +136,11 @@ ngx_rtmp_alloc_in_buf(ngx_rtmp_session_t *s)
     return cl;
 }
 
-
+/*
+用来重新初始化ping。
+当ping的定时器事件到期后，会检查s->ping_reset，如果ping_reset为1，则会调用ngx_rtmp_reset_ping。
+只有当服务器与客户端在ping定时器到期的时间以内，进行了有效的网络IO，s->ping_reset才会被置为1.
+*/
 void
 ngx_rtmp_reset_ping(ngx_rtmp_session_t *s)
 {
@@ -181,6 +192,10 @@ ngx_rtmp_ping(ngx_event_t *pev)
         return;
     }
 
+/*如果配置了busy为on，则ping无论如何都不会发送真正的ping message，将仅仅只通过是否发生了有效的网络io来判断对端是否可达。
+如果开启了busy，则程序走到这里，只能是ping_reset!=0，注意，如果开启了busy,由于程序永远无法再往下走，所以s->ping_active永远都是为0的。
+所以，这里实际上只用考虑s->ping_reset
+*/
     if (cscf->busy) {
         ngx_log_error(NGX_LOG_INFO, c->log, 0,
                 "ping: not busy between pings");
@@ -196,11 +211,14 @@ ngx_rtmp_ping(ngx_event_t *pev)
         return;
     }
 
+    //ping_active=1表示已经成功的发送了一个ping message，但是还没有进行有效的网络IO
     s->ping_active = 1;
     ngx_add_timer(pev, cscf->ping_timeout);
 }
 
-
+/*
+核心基础函数之一。用来接收rtmp消息
+*/
 static void
 ngx_rtmp_recv(ngx_event_t *rev)
 {
@@ -667,6 +685,7 @@ ngx_rtmp_prepare_message(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     mlen = 0;
     nbufs = 0;
     for(l = out; l; l = l->next) {
+		/* start:指向header; pos指向body*/ 
         mlen += (l->buf->last - l->buf->pos);
         ++nbufs;
     }

@@ -244,6 +244,12 @@ ngx_rtmp_codec_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         ctx->sample_size = (fmt & 0x02) ? 2 : 1;
         // »ñÈ¡SoundRate
         if (ctx->sample_rate == 0) {
+			/*
+			0 = 5.5kHZ
+			1 = 11kHZ
+			2 = 22kHZ
+			3 = 44kHZ
+			*/
             ctx->sample_rate = sample_rates[(fmt & 0x0c) >> 2];
         }
     } else {
